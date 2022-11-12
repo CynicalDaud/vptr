@@ -36,7 +36,7 @@ class PositionEmbeddding1D(nn.Module):
         """
         pos_embed = torch.ones(N, L, dtype = torch.float32).cumsum(axis = 1)
         dim_t = torch.arange(E, dtype = torch.float32)
-        dim_t = self.temperature ** (2 * (dim_t // 2) / E)
+        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / E)  
         if self.normalize:
             eps = 1e-6
             pos_embed = pos_embed / (L + eps) * self.scale
@@ -53,7 +53,7 @@ class PositionEmbeddding2D(nn.Module):
     2D position encoding, borrowed from DETR PositionEmbeddingSine class
     https://github.com/facebookresearch/detr/blob/master/models/position_encoding.py
     """
-    def __init__(self, temperature=10000, normalize=False, scale=None, device = torch.device('cuda:0')):
+    def __init__(self, temperature=10000, normalize=False, scale=None, device = torch.device('mps')):
         super().__init__()
         self.temperature = temperature
         self.normalize = normalize
@@ -74,15 +74,15 @@ class PositionEmbeddding2D(nn.Module):
         """
         assert E % 2 == 0, "Embedding size should be even number"
 
-        y_embed = torch.ones(N, H, W, dtype=torch.float32, device = "mps").cumsum(dim = 1)
-        x_embed = torch.ones(N, H, W, dtype=torch.float32, device = "mps").cumsum(dim = 2)
+        y_embed = torch.ones(N, H, W, dtype=torch.float32, device=self.device).cumsum(dim = 1)
+        x_embed = torch.ones(N, H, W, dtype=torch.float32, device=self.device).cumsum(dim = 2)
         if self.normalize:
             eps = 1e-6
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
 
-        dim_t = torch.arange(E//2, dtype=torch.float32, device="mps")
-        dim_t = self.temperature ** (2 * (dim_t // 2) / (E//2))
+        dim_t = torch.arange(torch.div(E, 2, rounding_mode='floor'), dtype=torch.float32, device=self.device)
+        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(E, 2, rounding_mode='floor')))
 
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
@@ -124,7 +124,7 @@ class PositionEmbeddding3D(nn.Module):
             pos_embed: positional encoding with shape (N, E, T, H, W)
         """
         NT, C, H, W= tensorlist.tensors.shape
-        N = NT//self.T
+        N = torch.div(NT, self.T, rounding_mode='floor')
         mask = tensorlist.mask
         assert self.E % 3 == 0, "Embedding size should be divisible by 3"
 
@@ -144,8 +144,8 @@ class PositionEmbeddding3D(nn.Module):
             y_embed = y_embed / (y_embed[:, :, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, :, -1:] + eps) * self.scale
         
-        dim_t = torch.arange(self.E//3, dtype=torch.float32, device=self.device)
-        dim_t = self.temperature ** (2 * (dim_t // 2) / (self.E//3))
+        dim_t = torch.arange(torch.div(self.E, 3, rounding_mode='floor'), dtype=torch.float32, device=self.device) 
+        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(self.E, 3, rounding_mode='floor')))
 
         pos_t = t_embed[:, :, :, :, None] / dim_t
         pos_x = x_embed[:, :, :, :, None] / dim_t

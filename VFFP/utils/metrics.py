@@ -62,8 +62,8 @@ class SSIM(torch.nn.Module):
         else:
             window = self.create_window(self.window_size, channel)
             
-            if img1.is_cuda:
-                window = window.cuda(img1.get_device())
+            if img1.is_mps:
+                window = window.mps(img1.get_device())
             window = window.type_as(img1)
             
             self.window = window
@@ -105,7 +105,7 @@ class SSIM(torch.nn.Module):
         else:
             return ssim_map.mean(1).mean(1).mean(1)
 
-def pred_ave_metrics(model, data_loader, metric_func, renorm_transform, num_future_frames, ckpt = None, device = 'cuda:0'):
+def pred_ave_metrics(model, data_loader, metric_func, renorm_transform, num_future_frames, ckpt = None, device = 'mps'):
     if ckpt is not None:
         _, _, _, VPTR_state_dict, _, _ = load_ckpt(ckpt)
         model.load_state_dict(VPTR_state_dict)
