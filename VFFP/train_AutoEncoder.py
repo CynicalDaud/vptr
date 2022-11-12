@@ -1,3 +1,5 @@
+#python -m tensorboard.main --logdir VPTR_ckpts/MNIST_ResNetAE_MSEGDLgan_tensorboard
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,7 +15,7 @@ from model import VPTREnc, VPTRDec, VPTRDisc, init_weights
 from model import GDL, MSELoss, L1Loss, GANLoss
 from utils import get_dataloader
 from utils import VidCenterCrop, VidPad, VidResize, VidNormalize, VidReNormalize, VidCrop, VidRandomHorizontalFlip, VidRandomVerticalFlip, VidToTensor
-from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, write_summary, resume_training
+from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, update_summary, write_summary, resume_training
 from utils import set_seed
 
 set_seed(2021)
@@ -104,8 +106,10 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
         visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 if __name__ == '__main__':
-    ckpt_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_ResNetAE_MSEGDLgan_ckpt')
-    tensorboard_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_ResNetAE_MSEGDLgan_tensorboard')
+    run = "2"
+
+    ckpt_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_ckpt')
+    tensorboard_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_tensorboard/'+run)
 
     #resume_ckpt = ckpt_save_dir.joinpath('epoch_45.tar')
     resume_ckpt = None
@@ -120,11 +124,11 @@ if __name__ == '__main__':
     N = 32
     AE_lr = 2e-4
     lam_gan = 0.01
-    device = torch.device('cuda:0')
+    device = torch.device('mps')
 
     #####################Init Dataset ###########################
-    data_set_name = 'KTH' #see utils.dataset
-    dataset_dir = '/home/travail/xiyex/KTH'
+    data_set_name = 'MNIST' #see utils.dataset
+    dataset_dir = './MovingMNIST/'
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
 
     #####################Init Models and Optimizer ###########################
@@ -162,14 +166,17 @@ if __name__ == '__main__':
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
         epoch_st = datetime.now()
         
+        print(len(train_loader ))
         #Train
         EpochAveMeter = AverageMeters(loss_name_list)
         for idx, sample in enumerate(train_loader, 0):
+            print(idx)
             iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
             EpochAveMeter.iter_update(iter_loss_dict)
-            
-        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
+            update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
         write_summary(summary_writer, loss_dict, train_flag = True)
+
+        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
         
         show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'), renorm_transform)
         

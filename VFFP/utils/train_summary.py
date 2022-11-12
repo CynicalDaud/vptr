@@ -115,6 +115,15 @@ def init_loss_dict(loss_name_list, history_loss_dict = None):
 
     return loss_dict
 
+def update_summary(summary_writer, in_loss_dict, idx, train_flag = True):
+    loss_dict = in_loss_dict.copy()
+    if train_flag:
+        for k, v in loss_dict.items():
+            summary_writer.add_scalars(k + " Running", {'train': v}, idx)
+    else:
+        for k, v in loss_dict.items():
+            summary_writer.add_scalars(k + " Running", {'val': v}, idx)
+
 def write_summary(summary_writer, in_loss_dict, train_flag = True):
     loss_dict = in_loss_dict.copy()
     del loss_dict['epochs']
