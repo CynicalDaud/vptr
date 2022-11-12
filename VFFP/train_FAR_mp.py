@@ -102,7 +102,7 @@ def init_models(img_channels, encC, encH, encW, dropout, out_layer, rpe, rank, T
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3, padding_type = padding_type).to(rank)
     VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = out_layer, padding_type = padding_type).to(rank)
     #load the trained autoencoder, we initialize the discriminator from scratch, for a balanced training
-    start_epoch, history_loss_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, map_location = f'mps:{rank}')
+    start_epoch, history_loss_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, map_location = f'cuda:0':{rank}')
     loss_name_list = ['T_MSE', 'T_GDL', 'T_gan', 'T_total', 'Dtotal', 'Dfake', 'Dreal']
     loss_dict = init_loss_dict(loss_name_list, history_loss_dict)
 
@@ -116,7 +116,7 @@ def init_models(img_channels, encC, encH, encW, dropout, out_layer, rpe, rank, T
         VPTR_Disc = VPTRDisc(img_channels, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d).to(rank)
         init_weights(VPTR_Disc)
         if not train_Disc:
-            _, _ = resume_training({'VPTR_Disc': VPTR_Disc}, {}, resume_AE_ckpt, map_location = f'mps:{rank}')
+            _, _ = resume_training({'VPTR_Disc': VPTR_Disc}, {}, resume_AE_ckpt, map_location = f'cuda:0':{rank}')
         VPTR_Disc = DDP(VPTR_Disc, device_ids=[rank])
         if not train_Disc:
             VPTR_Disc = VPTR_Disc.eval()
@@ -127,7 +127,7 @@ def init_models(img_channels, encC, encH, encW, dropout, out_layer, rpe, rank, T
     optimizer_T = torch.optim.AdamW(params = VPTR_Transformer.parameters(), lr = Transformer_lr)
 
     if resume_Transformer_ckpt is not None:
-        start_epoch, history_loss_dict = resume_training({'VPTR_Transformer': VPTR_Transformer}, {'optimizer_T':optimizer_T}, resume_Transformer_ckpt, map_location = f'mps:{rank}')
+        start_epoch, history_loss_dict = resume_training({'VPTR_Transformer': VPTR_Transformer}, {'optimizer_T':optimizer_T}, resume_Transformer_ckpt, map_location = f'cuda:0':{rank}')
         loss_dict = init_loss_dict(loss_name_list, history_loss_dict)
     VPTR_Transformer = DDP(VPTR_Transformer, device_ids=[rank])
 
