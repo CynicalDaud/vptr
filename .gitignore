@@ -2,3 +2,6 @@ mnist/**
 dataset-1/**
 VFFP/MovingMNIST/**
 VFFP/VPTR_chkpts/**
+VFFP/mnist/**
+VFFP/MovingMNIST_AE.tar
+VFFP/MovingMNIST_NAR.tar

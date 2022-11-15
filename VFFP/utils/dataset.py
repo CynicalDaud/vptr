@@ -499,7 +499,7 @@ def mean_std_compute(dataset, device, color_mode = 'RGB'):
     """
     arguments:
         dataset: pytorch dataloader
-        device: torch.device('cuda:0') or torch.device('cuda:0') for computation
+        device: torch.device('cpu') or torch.device('cpu') for computation
     return:
         mean and std of each image channel.
         std = sqrt(E(x^2) - (E(X))^2)
