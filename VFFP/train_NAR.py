@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     lam_gan = None #0.001
     lam_pc = 0.1
-    device = torch.device('cuda:0'')
+    device = torch.device('cuda:0')
 
     show_example_epochs = 10
     save_ckpt_epochs = 2
@@ -215,12 +215,12 @@ if __name__ == '__main__':
     gdl_loss = GDL(alpha = 1)
 
     #load the trained autoencoder, we initialize the discriminator from scratch, for a balanced training
-    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0''))
-    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0''))
+    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
+    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
 
     if resume_ckpt is not None:
         loss_dict, _ = resume_training({'VPTR_Transformer': VPTR_Transformer}, 
-                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('cuda:0''))
+                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
 
     start_epoch = other_dict["epochs"]
 

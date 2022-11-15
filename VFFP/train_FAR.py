@@ -165,7 +165,7 @@ if __name__ == '__main__':
     rpe = False
     lam_gan = 0.001
     dropout = 0.1
-    device = torch.device('cuda:0'')
+    device = torch.device('cuda:0')
     val_per_epochs = 4
 
     #####################Init Dataset ###########################
