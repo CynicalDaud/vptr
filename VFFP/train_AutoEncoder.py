@@ -10,6 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import random
 from datetime import datetime
+from time import sleep
+from tqdm import tqdm
 
 from model import VPTREnc, VPTRDec, VPTRDisc, init_weights
 from model import GDL, MSELoss, L1Loss, GANLoss
@@ -106,7 +108,7 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
         visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 if __name__ == '__main__':
-    run = "2"
+    run = "1"
 
     ckpt_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_ckpt')
     tensorboard_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_tensorboard/'+run)
@@ -165,37 +167,38 @@ if __name__ == '__main__':
     #####################Training loop ###########################                                            
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
         epoch_st = datetime.now()
-        
-        print(len(train_loader ))
         #Train
         EpochAveMeter = AverageMeters(loss_name_list)
-        for idx, sample in enumerate(train_loader, 0):
-            print(idx)
-            iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
-            EpochAveMeter.iter_update(iter_loss_dict)
-            update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
-        write_summary(summary_writer, loss_dict, train_flag = True)
+        with tqdm(enumerate(train_loader, 0), unit=" batch", total=len(train_loader)) as tepoch:
+            for idx, sample in tepoch:
+                tepoch.set_description(f"Epoch {epoch}")
+                iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
+                EpochAveMeter.iter_update(iter_loss_dict)
+                update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
+                tepoch.set_postfix(loss=iter_loss_dict["AE_total"])
+                sleep(0.1)
+            write_summary(summary_writer, loss_dict, train_flag = True)
 
-        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
-        
-        show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'), renorm_transform)
-        
-        #validation
-        EpochAveMeter = AverageMeters(loss_name_list)
-        for idx, sample in enumerate(val_loader, 0):
-            iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = False)
-            EpochAveMeter.iter_update(iter_loss_dict)
-        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
-        write_summary(summary_writer, loss_dict, train_flag = False)
-        
-        save_ckpt({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
-                {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
-                epoch, loss_dict, ckpt_save_dir)
-        for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
-            show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'), renorm_transform)
-            break
+            loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
             
-        epoch_time = datetime.now() - epoch_st
-        print(f'epoch {epoch}', EpochAveMeter.meters['AE_total'])
-        print(f"Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
-        
+            show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'), renorm_transform)
+            
+            #validation
+            EpochAveMeter = AverageMeters(loss_name_list)
+            for idx, sample in enumerate(val_loader, 0):
+                iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = False)
+                EpochAveMeter.iter_update(iter_loss_dict)
+            loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
+            write_summary(summary_writer, loss_dict, train_flag = False)
+            
+            save_ckpt({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
+                    {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
+                    epoch, loss_dict, ckpt_save_dir)
+            for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
+                show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'), renorm_transform)
+                break
+                
+            epoch_time = datetime.now() - epoch_st
+            print(f'epoch {epoch}', EpochAveMeter.meters['AE_total'])
+            print(f"Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
+            
