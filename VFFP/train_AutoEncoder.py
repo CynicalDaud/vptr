@@ -121,7 +121,7 @@ if __name__ == '__main__':
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
     epochs = 50
-    N = 32
+    N = 16
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('mps')
