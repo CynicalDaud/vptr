@@ -155,11 +155,10 @@ def save_ckpt(Modules_dict, Optimizers_dict, epoch, loss_dict, save_dir):
         'Module_state_dict': module_state_dict,
         'optimizer_state_dict': optim_state_dict,
         'code': ckpt_codes
-    }, ckpt_file.absolute().as_posix())
+    }, ckpt_file.absolute().as_posix(), pickle_protocol=4)
 
 def load_ckpt(ckpt_file, map_location = None):
     ckpt = torch.load(ckpt_file, map_location = map_location)
-
     epoch = ckpt["epoch"]
     loss_dict = ckpt["loss_dict"]
     Modules_state_dict = ckpt['Module_state_dict']

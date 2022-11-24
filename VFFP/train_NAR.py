@@ -16,6 +16,8 @@ from utils import KTHDataset, BAIRDataset, MovingMNISTDataset, write_code_files
 from utils import VidCenterCrop, VidPad, VidResize, VidNormalize, VidReNormalize, VidCrop, VidRandomHorizontalFlip, VidRandomVerticalFlip, VidToTensor
 from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, write_summary, resume_training
 from utils import set_seed, get_dataloader
+from time import sleep
+from tqdm import tqdm
 
 import logging
 
@@ -231,35 +233,37 @@ if __name__ == '__main__':
 
         #Train
         EpochAveMeter = AverageMeters(loss_name_list)
-        for idx, sample in enumerate(train_loader, 0):
-            print(idx)
-            iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = True)
-            EpochAveMeter.iter_update(iter_loss_dict)
-            
-        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
-        write_summary(summary_writer, loss_dict, train_flag = True)
 
-        if epoch % show_example_epochs == 0 or epoch == 1:
-            NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('train_gifs_epoch{epoch}'))
+
+
+        with tqdm(enumerate(train_loader, 0), unit=" batch", total=len(train_loader)) as tepoch:
+            for idx, sample in tepoch:
+                iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = True)
+                EpochAveMeter.iter_update(iter_loss_dict)
+            loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
+            write_summary(summary_writer, loss_dict, train_flag = True)
+
+            if epoch % show_example_epochs == 0 or epoch == 1:
+                NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('train_gifs_epoch{epoch}'))
+                    
+            #validation
+            EpochAveMeter = AverageMeters(loss_name_list)
+            for idx, sample in enumerate(val_loader, 0):
+                iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = False)
+                EpochAveMeter.iter_update(iter_loss_dict)
+            loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
+            write_summary(summary_writer, loss_dict, train_flag = False)
+
+            if epoch % save_ckpt_epochs == 0:
+                save_ckpt({'VPTR_Transformer': VPTR_Transformer}, 
+                        {'optimizer_T': optimizer_T}, 
+                        epoch, loss_dict, ckpt_save_dir)
+            
+            if epoch % show_example_epochs == 0 or epoch == 1:
+                for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
+                    NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('test_gifs_epoch{epoch}'))
+                    break
                 
-        #validation
-        EpochAveMeter = AverageMeters(loss_name_list)
-        for idx, sample in enumerate(val_loader, 0):
-            iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = False)
-            EpochAveMeter.iter_update(iter_loss_dict)
-        loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
-        write_summary(summary_writer, loss_dict, train_flag = False)
-
-        if epoch % save_ckpt_epochs == 0:
-            save_ckpt({'VPTR_Transformer': VPTR_Transformer}, 
-                    {'optimizer_T': optimizer_T}, 
-                    epoch, loss_dict, ckpt_save_dir)
-        
-        if epoch % show_example_epochs == 0 or epoch == 1:
-            for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
-                NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('test_gifs_epoch{epoch}'))
-                break
-            
         epoch_time = datetime.now() - epoch_st
 
         logging.info("epoch {epoch}, {EpochAveMeter.meters['T_total']}")
