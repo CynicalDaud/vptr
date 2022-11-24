@@ -6,6 +6,10 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
+from matplotlib import pyplot as plt
+
+
+import tifffile
 
 from pathlib import Path
 import random
@@ -13,6 +17,7 @@ from datetime import datetime
 from time import sleep
 from tqdm import tqdm
 
+from customdatasets import SegmentationData
 from model import VPTREnc, VPTRDec, VPTRDisc, init_weights
 from model import GDL, MSELoss, L1Loss, GANLoss
 from utils import get_dataloader
@@ -110,10 +115,10 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
 if __name__ == '__main__':
     run = "1"
 
-    ckpt_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_ckpt')
+    ckpt_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_ckpt/')
     tensorboard_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_tensorboard/'+run)
-
-    #resume_ckpt = ckpt_save_dir.joinpath('epoch_45.tar')
+    
+    # resume_ckpt = ckpt_save_dir.joinpath('epoch_2.tar')
     resume_ckpt = None
     start_epoch = 0
 
@@ -123,14 +128,14 @@ if __name__ == '__main__':
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
     epochs = 50
-    N = 16
+    N = 1
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('mps')
 
     #####################Init Dataset ###########################
-    data_set_name = 'MNIST' #see utils.dataset
-    dataset_dir = './MovingMNIST/'
+    data_set_name = 'TMCS' #see utils.dataset
+    dataset_dir = './ToyMCS'
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
 
     #####################Init Models and Optimizer ###########################
@@ -160,9 +165,8 @@ if __name__ == '__main__':
 
     if resume_ckpt is not None:
         loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
-                                                {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
-                                                loss_name_list, resume_ckpt)
-
+                                                {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, resume_ckpt,
+                                                loss_name_list)
 
     #####################Training loop ###########################                                            
     for epoch in range(start_epoch+1, start_epoch + epochs+1):

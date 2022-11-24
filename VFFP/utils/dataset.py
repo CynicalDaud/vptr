@@ -33,6 +33,17 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
                                 num_past_frames= test_past_frames, num_future_frames= test_future_frames)#, actions = ['walking_no_empty'])
         test_set = KTHTestData()
 
+    elif data_set_name == 'TMCS':
+        renorm_transform = VidReNormalize(mean = 0., std = 1.0)
+        train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
+        test_transform = VidToTensor()
+
+        dataset_dir = Path(data_set_dir)
+        train_set = ToyMCSDataset(dataset_dir.joinpath('toy-MCS-test.npz'), train_transform)
+        val_set = ToyMCSDataset(dataset_dir.joinpath('toy-MCS-test.npz'), train_transform)
+        test_set = ToyMCSDataset(dataset_dir.joinpath('toy-MCS-test.npz'), test_transform)    
+
+
     elif data_set_name == 'MNIST':
         renorm_transform = VidReNormalize(mean = 0., std = 1.0)
         train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
@@ -285,6 +296,92 @@ class ClipDataset(Dataset):
             video.write(cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR))
         video.release()
         #imgs[0].save(str(Path(file_name).absolute()), save_all = True, append_images = imgs[1:])
+
+class ToyMCSDataset(Dataset):
+    """
+    Toy MCS Dataset
+    """
+    def __init__(self, data_path, transform):
+        """
+        both num_past_frames and num_future_frames are limited to be 10
+        Args:
+            data_path --- tiff file path
+            transfrom --- torchvision transforms for the image
+        Return batched Sample:
+            past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
+            future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
+        """
+        self.data_path = data_path
+        self.data = self.load_data()
+
+        self.transform = transform
+    
+    def load_data(self):
+        data = {}
+        np_arr = np.load(self.data_path.absolute().as_posix())
+        for key in np_arr:
+            data[key] = np_arr[key]
+        return data
+
+    def __len__(self):
+        return self.data['clips'].shape[1]
+        #return self.data['arr_0'].shape[1]
+
+
+    
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            past_clip: Tensor with shape (num_past_frames, C, H, W)
+            future_clip: Tensor with shape (num_future_frames, C, H, W)
+        """
+        if torch.is_tensor(index):
+            index = index.to_list()
+            
+# psi is idx of start of clip = clip_idx[0][0]
+# pei is idx of end of clip = psi + clip_idx[0][1]
+# clip_idx[0] = [psi, len]
+# clip_idx    = [[psi,len],[fsi,len]]
+# 'clips      = [[[psi1,len1],[psi2,len2]],[[fsi1,len1][fsi2len2]]]
+# pei-psi = length of clip
+# clip_idx = [[psi, pei-psi]] = data[clips][psi,idx,len]
+
+
+#(2,2,2) = [ -[--][--]- -[--][--]- ]    
+# 'clips' has to be array containing as many elements as there are starting points. Each of those needs as many elements as index and each of those as many as end points
+
+        clip_index = self.data['clips'][:, index, :]
+
+        psi, pei = clip_index[0, 0], clip_index[0, 0] + clip_index[0, 1]
+        past_clip = self.data['input_raw_data'][psi:pei, 0, ...]
+        
+        fsi, fei = clip_index[1, 0], clip_index[1, 0] + clip_index[1, 1]
+        future_clip = self.data['input_raw_data'][fsi:fei, 0, ...]
+
+        full_clip = torch.from_numpy(np.concatenate((past_clip, future_clip), axis = 0))
+        imgs = []
+        for i in range(full_clip.shape[0]):
+            img = transforms.ToPILImage()(full_clip[i, ...])
+            imgs.append(img)
+        
+        full_clip = self.transform(imgs)
+        past_clip = full_clip[0:int(clip_index[0, 1]), ...]
+        future_clip = full_clip[-int(clip_index[1, 1]):, ...]
+
+        return past_clip, future_clip
+
+    def visualize_clip(self, clip, file_name):
+        """
+        save a video clip to GIF file
+        Args:
+            clip: tensor with shape (clip_length, C, H, W)
+        """
+        imgs = []
+        for i in range(clip.shape[0]):
+            img = transforms.ToPILImage()(clip[i, ...])
+            imgs.append(img)
+
+        imgs[0].save(str(Path(file_name).absolute()), save_all = True, append_images = imgs[1:])
 
 class MovingMNISTDataset(Dataset):
     """
