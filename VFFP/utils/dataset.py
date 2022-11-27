@@ -34,7 +34,7 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
         test_set = KTHTestData()
 
     elif data_set_name == 'TMCS':
-        renorm_transform = VidReNormalize(mean = 0., std = 1.0)
+        renorm_transform = VidReNormalize(mean = 0.2828115, std = 0.5318002)
         train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
         test_transform = VidToTensor()
 
