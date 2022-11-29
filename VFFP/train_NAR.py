@@ -143,8 +143,9 @@ if __name__ == '__main__':
 
     ckpt_save_dir = Path('./VPTR_chkpts')
     tensorboard_save_dir = Path('./VPTR_chkpts/tensorboard')
-    resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
-    resume_AE_ckpt = Path('./VPTR_chkpts/MovingMNIST_AE.tar') #The trained AutoEncoder checkpoint file
+    #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
+    resume_ckpt = None
+    resume_AE_ckpt = Path('./VPTR_chkpts/AE-fs-e100.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
     if not Path(ckpt_save_dir).exists():
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     encH, encW, encC = 8, 8, 528
     img_channels = 1
     epochs = 100
-    N = 16
+    N = 1
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
     max_grad_norm = 1.0 
@@ -173,7 +174,7 @@ if __name__ == '__main__':
 
     lam_gan = None #0.001
     lam_pc = 0.1
-    device = torch.device('mps')
+    device = torch.device('cuda:0')
 
     show_example_epochs = 10
     save_ckpt_epochs = 2
@@ -217,12 +218,12 @@ if __name__ == '__main__':
     gdl_loss = GDL(alpha = 1)
 
     #load the trained autoencoder, we initialize the discriminator from scratch, for a balanced training
-    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('mps'))
-    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('mps'))
+    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
+    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
 
     if resume_ckpt is not None:
         loss_dict, _ = resume_training({'VPTR_Transformer': VPTR_Transformer}, 
-                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('mps'))
+                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
 
     start_epoch = other_dict["epochs"]
 
