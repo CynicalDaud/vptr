@@ -143,8 +143,9 @@ if __name__ == '__main__':
 
     ckpt_save_dir = Path('./VPTR_chkpts')
     tensorboard_save_dir = Path('./VPTR_chkpts/tensorboard')
-    resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
-    resume_AE_ckpt = Path('./VPTR_chkpts/MovingMNIST_AE.tar') #The trained AutoEncoder checkpoint file
+    #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
+    resume_ckpt = None
+    resume_AE_ckpt = Path('./VPTR_chkpts/AE-fs-e100.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
     if not Path(ckpt_save_dir).exists():
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     encH, encW, encC = 8, 8, 528
     img_channels = 1
     epochs = 100
-    N = 16
+    N = 1
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
     max_grad_norm = 1.0 
