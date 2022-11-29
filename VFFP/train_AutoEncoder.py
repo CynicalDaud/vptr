@@ -131,7 +131,7 @@ if __name__ == '__main__':
     N = 1
     AE_lr = 2e-4
     lam_gan = 0.01
-    device = torch.device('mps')
+    device = torch.device('cuda:0')
 
     #####################Init Dataset ###########################
     data_set_name = 'MNIST' #see utils.dataset
