@@ -134,9 +134,16 @@ if __name__ == '__main__':
     device = torch.device('mps')
 
     #####################Init Dataset ###########################
+    data_set_name = 'MNIST' #see utils.dataset
+    dataset_dir = './MovingMNIST'
+    train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
+
+    print(train_loader.dataset.__getitem__(1)[0].shape)
     data_set_name = 'TMCS' #see utils.dataset
     dataset_dir = './ToyMCS'
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
+
+    print(train_loader.dataset.__getitem__(1)[0].shape)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)

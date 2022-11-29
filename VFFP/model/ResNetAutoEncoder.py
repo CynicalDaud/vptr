@@ -88,7 +88,7 @@ class ResnetDecoder(nn.Module):
                       nn.ReLU(True)]
         model += [nn.ReflectionPad2d(3)]
         # KERNEL SIZE USED TO BE 7??
-        model += [nn.Conv2d(ngf, output_nc, kernel_size=11, padding=0)]
+        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
         if out_layer == 'Tanh':
             model += [nn.Tanh()]
         elif out_layer == 'Sigmoid':
@@ -104,7 +104,6 @@ class ResnetDecoder(nn.Module):
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
-
     def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
         """Initialize the Resnet block
         A resnet block is a conv block with skip connections
