@@ -65,14 +65,13 @@ class VidHRFormerBlockEnc(nn.Module):
         Return: (N, T, H, W, C)
         """
         N, T, H, W, C = x.shape
-        print(x.shape)
         x = x + self.drop_path(self.SLMHSA(self.norm1(x), local_window_pos_embed)) #spatial local window self-attention, and skip connection
         
         #Conv feed-forward, different local window information interacts
         x = x + self.drop_path(self.SpatialFFN(self.norm2(x)))#(N, T, H, W, C)
 
         #temporal attention
-        x = x.permute(1, 0, 2, 3, 4).reshape(T, N*H*W, C)
+        x = x.permute(1, 0, 2, 3, 4).contiguous().reshape(T, N*H*W, C)
         x1 = self.norm3(x)
         if self.far:
             #create attention mask for temporal self-attention
@@ -86,10 +85,13 @@ class VidHRFormerBlockEnc(nn.Module):
 
         #output feed-forward
         x1 = self.norm4(x)
+
         x1 = self.linear2(self.drop2(self.activation(self.linear1(x1))))
+
         x = x + self.drop3(x1)
 
-        x = x.reshape(T, N, H, W, C).permute(1, 0, 2, 3, 4)
+
+        x = x.reshape(T, N, H, W, C).permute(1, 0, 2, 3, 4).contiguous()
 
         return x
 
@@ -177,34 +179,36 @@ class VidHRFormerBlockDecNAR(nn.Module):
         tgt2 = self.norm1(tgt)
         tgt2_query_pos = tgt2 + query_pos
         tgt2 = tgt + self.drop_path(self.SLMHSA(tgt2_query_pos, local_window_pos_embed, value = tgt2)) #spatial local window self-attention, and skip connection
+        
         #Conv feed-forward, different local window information interacts
         tgt2 = tgt2 + self.drop_path(self.SpatialFFN(self.norm2(tgt2))) #(N, T, H, W, C)
 
         #query temporal self-attention
-        tgt2 = tgt2.permute(1, 0, 2, 3, 4).reshape(T2, N*H*W, C)
+        tgt2 = tgt2.permute(1, 0, 2, 3, 4).contiguous().reshape(T2, N*H*W, C)
         tgt = self.norm3(tgt2)
+
         tgt2 = tgt2 + self.drop1(self.temporal_MHSA(tgt + future_query_temporal_pos_embed[:, None, :], 
                                               tgt + future_query_temporal_pos_embed[:, None, :], 
                                               tgt)[0])
-        
+
         #feed-forward after temporal self-attention
         tgt = self.norm4(tgt2)
         tgt = self.linear2(self.drop2(self.activation(self.linear1(tgt))))
         tgt2 = tgt2 + self.drop3(tgt)
 
         if self.TSLMA_flag:
-            tgt2 = tgt2.reshape(T2, N, H, W, C).permute(1, 0, 2, 3, 4)
+            tgt2 = tgt2.reshape(T2, N, H, W, C).permute(1, 0, 2, 3, 4).contiguous()
             #encoder-decoder attention (temporal local spatial full attention)
             tgt = self.norm5(tgt2)
             tgt2 = tgt2 + self.drop_path1(self.TSLMA(memory, tgt + query_pos, TS_local_pos_embed))
         else:
             tgt = self.norm5(tgt2)
             T1 = memory.shape[1]
-            memory = memory.permute(1, 0, 2, 3, 4).reshape(T1, N*H*W, C)
-            query_pos = query_pos.permute(1, 0, 2, 3, 4).reshape(T2, N*H*W, C)
+            memory = memory.permute(1, 0, 2, 3, 4).contiguous().reshape(T1, N*H*W, C)
+            query_pos = query_pos.permute(1, 0, 2, 3, 4).contiguous().reshape(T2, N*H*W, C)
             tgt2 = tgt2 + self.drop_path1(self.EncDecAttn(query = tgt+query_pos+future_query_temporal_pos_embed[:, None, :], 
                                                           key = memory+past_query_temporal_pos_embed[:, None, :], value = memory)[0])
-            tgt2 = tgt2.reshape(T2, N, H, W, C).permute(1, 0, 2, 3, 4)
+            tgt2 = tgt2.reshape(T2, N, H, W, C).permute(1, 0, 2, 3, 4).contiguous()
 
         #another Conv feed-forward, different local window information interacts
         tgt2 = tgt2 + self.drop_path1(self.SpatialFFN1(self.norm6(tgt2)))
@@ -268,8 +272,8 @@ class TemporalSpatialLocalMultiheadAttention(nn.Module):
         query_pad = query_pad.view(N, T2, H_pad, W_pad, C)
 
         # permute
-        memory_permute = self.permute_helper.permute(memory_pad, memory_pad.size()) #(T1*window_size*window_size, N*H/window_size*W/window_size, C)
-        query_permute = self.permute_helper.permute(query_pad, query_pad.size()) #(T2*window_size*window_size, N*H/window_size*W/window_size, C)
+        memory_permute = self.permute_helper.permute(memory_pad, memory_pad.size()).contiguous() #(T1*window_size*window_size, N*H/window_size*W/window_size, C)
+        query_permute = self.permute_helper.permute(query_pad, query_pad.size()).contiguous() #(T2*window_size*window_size, N*H/window_size*W/window_size, C)
 
         # attention
         out = self.attn(query = query_permute + TS_local_pos_embed[T1:T1+T2, ...].flatten(0, 2)[:, None, :],
@@ -334,7 +338,7 @@ class SpatialLocalMultiheadAttention(nn.Module):
         # pad
         x_pad = self.pad_helper.pad_if_needed(x, x.size())
         # permute
-        x_permute = self.permute_helper.permute(x_pad, x_pad.size()) #(window_size*window_size, N*T*H/window_size*W/window_size, C)
+        x_permute = self.permute_helper.permute(x_pad, x_pad.size()).contiguous() #(window_size*window_size, N*T*H/window_size*W/window_size, C)
         
         if self.rpe:
             k = q = x_permute
@@ -344,7 +348,7 @@ class SpatialLocalMultiheadAttention(nn.Module):
         if value is not None:
             value = value.view(N*T, H, W, C)
             value_pad = self.pad_helper.pad_if_needed(value, value.size())
-            value_permute = self.permute_helper.permute(value_pad, value_pad.size()) #(window_size*window_size, N*T*H/window_size*W/window_size, C)
+            value_permute = self.permute_helper.permute(value_pad, value_pad.size()).contiguous() #(window_size*window_size, N*T*H/window_size*W/window_size, C)
             # attention
             out = self.attn(q, k, value = value_permute)[0]
         else:
@@ -427,7 +431,7 @@ class MlpDWBN(nn.Module):
         x: (N, T, H, W, C)
         """
         N, T, H, W, C = x.shape
-        x = x.view(N*T, H, W, C).permute(0, 3, 1, 2)
+        x = x.view(N*T, H, W, C).permute(0, 3, 1, 2).contiguous()
         x = self.fc1(x)
         x = self.norm1(x)
         x = self.act1(x)
@@ -440,7 +444,7 @@ class MlpDWBN(nn.Module):
         x = self.act3(x)
         x = self.drop(x)
 
-        return x.permute(0, 2, 3, 1).reshape(N, T, H, W, self.out_features)
+        return x.permute(0, 2, 3, 1).contiguous().reshape(N, T, H, W, self.out_features)
 
 class TemporalLocalPermuteModule(object):
     """ Permute the feature map to gather pixels in spatial local groups, and the reverse permutation

@@ -40,7 +40,7 @@ class VidHRFormerNAR(nn.Module):
         """
         N, Tp, _, _, _ = src.shape
         #src = self.conv_proj(src.view(N*Tp, self.in_C, self.H, self.W)).view(N, Tp, self.embed_dim, self.H, self.W)
-        src = src.permute(0, 1, 3, 4, 2)
+        src = src.permute(0, 1, 3, 4, 2).contiguous()
         memory = self.encoder(src, local_window_pos_embed, temporal_pos_embed[0:Tp, ...])
         #pred_query = self.FBP(memory, src) #(N, Tf, H, W, embed_dim)
         query_pos = query_pos.unsqueeze(0).repeat(N, 1, 1, 1, 1)# + pred_query
@@ -48,7 +48,7 @@ class VidHRFormerNAR(nn.Module):
         init_tgt = torch.zeros_like(query_pos, requires_grad = False) #init as zeros
         out = self.decoder(init_tgt, query_pos, memory, local_window_pos_embed, temporal_pos_embed[Tp:, ...], TS_local_pos_embed, temporal_pos_embed[0:Tp, ...]) #(N, Tf, H, W, embed_dim)
 
-        out = F.relu_(out.permute(0, 1, 4, 2, 3))
+        out = F.relu_(out.permute(0, 1, 4, 2, 3).contiguous())
 
         return out, memory
 
@@ -82,8 +82,8 @@ class VidHRFormerFAR(nn.Module):
         """
         src = input_feat
         N, T, _, _, _ = src.shape
-        src = src.permute(0, 1, 3, 4, 2)
+        src = src.permute(0, 1, 3, 4, 2).contiguous()
         pred = self.encoder(src, local_window_pos_embed, temporal_pos_embed[0:T, ...])
-        pred = F.relu_(pred.permute(0, 1, 4, 2, 3))
+        pred = F.relu_(pred.permute(0, 1, 4, 2, 3).contiguous())
         
         return pred

@@ -142,7 +142,6 @@ if __name__ == '__main__':
     random_img1 = torch.randn(4, 3, 256, 256)
     random_img2 = torch.randn(4, 3, 256, 256)
     ssim_index = ssim(random_img1, random_img2)
-    print(ssim_index)
     
     import torchvision.transforms as transforms
     from PIL import Image
@@ -152,7 +151,5 @@ if __name__ == '__main__':
 
     img2 = img1.clone()
     ssim_index = ssim(img1, img2)
-    print(ssim_index)
     
     ssim_index = ssim(img1, torch.randn(1, 1, 256, 256))
-    print(ssim_index)

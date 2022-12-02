@@ -160,8 +160,8 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
             for p in VPTR_Disc.parameters():
                     p.requires_grad_(False)
         
-        pred_future_feats = VPTR_Transformer.module.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
-        future_gt_feats = VPTR_Transformer.module.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
+        pred_future_feats = VPTR_Transformer.module.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
+        future_gt_feats = VPTR_Transformer.module.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
         #update Transformer (generator)
         loss_T, T_GDL_loss, T_MSE_loss, T_PC_loss, loss_T_gan = cal_lossT(VPTR_Disc, pred_frames, future_frames, pred_future_feats, future_gt_feats,  mse_loss, gdl_loss, bpnce, lam_pc, lam_gan)
         loss_T.backward()
@@ -177,8 +177,8 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
             pred_frames = VPTR_Dec(pred_future_feats)
             if optimizer_D is not None:
                 loss_D, loss_D_fake, loss_D_real = cal_lossD(VPTR_Disc, pred_frames, future_frames, lam_gan)
-            pred_future_feats = VPTR_Transformer.module.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
-            future_gt_feats = VPTR_Transformer.module.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
+            pred_future_feats = VPTR_Transformer.module.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
+            future_gt_feats = VPTR_Transformer.module.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
             loss_T, T_GDL_loss, T_MSE_loss, T_PC_loss, loss_T_gan = cal_lossT(VPTR_Disc, pred_frames, future_frames, pred_future_feats, future_gt_feats,  mse_loss, gdl_loss, bpnce, lam_pc, lam_gan)
         
     if optimizer_D is None:

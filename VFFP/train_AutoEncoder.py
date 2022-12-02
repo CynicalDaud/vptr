@@ -123,10 +123,10 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 10
-    num_future_frames = 10
+    num_past_frames = 50
+    num_future_frames = 50
     encH, encW, encC = 8, 8, 528
-    img_channels = 1 #3 channels for BAIR datset
+    img_channels = 1 #3 c          hannels for BAIR datset
     epochs = 50
     N = 1
     AE_lr = 2e-4
@@ -140,7 +140,7 @@ if __name__ == '__main__':
 
     print(train_loader.dataset.__getitem__(1)[0].shape)
     data_set_name = 'TMCS' #see utils.dataset
-    dataset_dir = './ToyMCS'
+    dataset_dir = './ToyMCS/nxn'
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
 
     print(train_loader.dataset.__getitem__(1)[0].shape)

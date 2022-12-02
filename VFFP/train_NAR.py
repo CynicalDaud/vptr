@@ -61,10 +61,13 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
         VPTR_Transformer = VPTR_Transformer.train()
         VPTR_Transformer.zero_grad(set_to_none=True)
         VPTR_Dec.zero_grad(set_to_none=True)
+        print(f"GT Frames: {future_frames.shape}")
+        print(f"Past Frames: {past_frames.shape}")
         
         pred_future_feats = VPTR_Transformer(past_gt_feats)
         pred_frames = VPTR_Dec(pred_future_feats)
-        
+        print(f"Predicted Frames: {pred_frames.shape}")
+
         if optimizer_D is not None:
             assert lam_gan is not None, "Input lam_gan"
             #update discriminator
@@ -79,12 +82,18 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
             #update Transformer (generator)
             for p in VPTR_Disc.parameters():
                 p.requires_grad_(False)
-
-        pred_future_feats = VPTR_Transformer.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
-        future_gt_feats = VPTR_Transformer.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
+        
+        print("NCE Projecting Pred")
+        pred_future_feats = VPTR_Transformer.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
+        print("NCE Projecting GT")
+        future_gt_feats = VPTR_Transformer.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
+        print("Cal_Loss")
         loss_T, T_GDL_loss, T_MSE_loss, T_PC_loss, loss_T_gan = cal_lossT(VPTR_Disc, pred_frames, future_frames, pred_future_feats, future_gt_feats, lam_pc, lam_gan)
+        print("Backward")
         loss_T.backward()
+        print("Clip_grad_norm")
         nn.utils.clip_grad_norm_(VPTR_Transformer.parameters(), max_norm=max_grad_norm, norm_type=2)
+        print
         optimizer_T.step()
 
     else:
@@ -97,8 +106,8 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
             if optimizer_D is not None:
                 loss_D, loss_D_fake, loss_D_real = cal_lossD(VPTR_Disc, pred_frames, future_frames, lam_gan)
 
-            pred_future_feats = VPTR_Transformer.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
-            future_gt_feats = VPTR_Transformer.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2)).permute(0, 1, 4, 2, 3)
+            pred_future_feats = VPTR_Transformer.NCE_projector(pred_future_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
+            future_gt_feats = VPTR_Transformer.NCE_projector(future_gt_feats.permute(0, 1, 3, 4, 2).contiguous()).permute(0, 1, 4, 2, 3).contiguous()
             loss_T, T_GDL_loss, T_MSE_loss, T_PC_loss, loss_T_gan = cal_lossT(VPTR_Disc, pred_frames, future_frames, pred_future_feats, future_gt_feats, lam_pc, lam_gan)
     
     if optimizer_D is None:        
@@ -141,11 +150,11 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
 if __name__ == '__main__':
     set_seed(2021)
 
-    ckpt_save_dir = Path('./VPTR_chkpts')
-    tensorboard_save_dir = Path('./VPTR_chkpts/tensorboard')
+    ckpt_save_dir = Path('./VPTR_chkpts/transformer')
+    tensorboard_save_dir = Path('./VPTR_chkpts/transformer/tensorboard')
     #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
     resume_ckpt = None
-    resume_AE_ckpt = Path('./VPTR_chkpts/AE-fs-e100.tar') #The trained AutoEncoder checkpoint file
+    resume_AE_ckpt = Path('VPTR_chkpts/Pre/mps-AE-fs-e50.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
     if not Path(ckpt_save_dir).exists():
@@ -159,9 +168,9 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 10
-    num_future_frames = 10
-    encH, encW, encC = 8, 8, 528
+    num_past_frames = 50
+    num_future_frames = 50
+    encH, encW, encC = 18, 18, 528
     img_channels = 1
     epochs = 100
     N = 1
@@ -174,14 +183,14 @@ if __name__ == '__main__':
 
     lam_gan = None #0.001
     lam_pc = 0.1
-    device = torch.device('cuda:0')
+    device = torch.device('mps')
 
     show_example_epochs = 10
     save_ckpt_epochs = 2
 
     #####################Init Dataset ###########################
-    data_set_name = 'MNIST'
-    dataset_dir = './MovingMNIST'
+    data_set_name = 'TMCS'
+    dataset_dir = './ToyMCS/nxn'
     test_past_frames = 2
     test_future_frames = 10
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, test_past_frames, test_future_frames)
@@ -207,7 +216,7 @@ if __name__ == '__main__':
     optimizer_T = torch.optim.AdamW(params = VPTR_Transformer.parameters(), lr = Transformer_lr)
 
     Transformer_parameters = sum(p.numel() for p in VPTR_Transformer.parameters() if p.requires_grad)
-    print("NAR Transformer num_parameters: {Transformer_parameters}")
+    print(f"NAR Transformer num_parameters: {Transformer_parameters}")
 
     #####################Init loss function###########################
     loss_name_list = ['T_MSE', 'T_GDL', 'T_gan', 'T_total', 'T_bpc', 'Dtotal', 'Dfake', 'Dreal']
@@ -218,14 +227,14 @@ if __name__ == '__main__':
     gdl_loss = GDL(alpha = 1)
 
     #load the trained autoencoder, we initialize the discriminator from scratch, for a balanced training
-    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
-    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
+    #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('mps'))
+    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list)
 
     if resume_ckpt is not None:
         loss_dict, _ = resume_training({'VPTR_Transformer': VPTR_Transformer}, 
-                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
+                                                {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list)
 
-    start_epoch = other_dict["epochs"]
+    start_epoch = 0
 
     #####################Train ################################
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
@@ -267,5 +276,5 @@ if __name__ == '__main__':
                 
         epoch_time = datetime.now() - epoch_st
 
-        logging.info("epoch {epoch}, {EpochAveMeter.meters['T_total']}")
-        logging.info("Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
+        logging.info(f"epoch {epoch}, {EpochAveMeter.meters['T_total']}")
+        logging.info(f"Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")

@@ -43,7 +43,7 @@ class PositionEmbeddding1D(nn.Module):
 
         pos_embed = pos_embed[:, :, None] / dim_t
         pos_embed = torch.stack((pos_embed[:, :, 0::2].sin(), pos_embed[:, :, 1::2].cos()), dim = 3).flatten(2)
-        pos_embed = pos_embed.permute(1, 0, 2)
+        pos_embed = pos_embed.permute(1, 0, 2).contiguous()
         pos_embed.requires_grad_(False)
         
         return pos_embed
@@ -88,7 +88,7 @@ class PositionEmbeddding2D(nn.Module):
         pos_y = y_embed[:, :, :, None] / dim_t
         pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        pos_embed = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
+        pos_embed = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2).contiguous()
         pos_embed.requires_grad_(False)
         return pos_embed
 
@@ -155,7 +155,7 @@ class PositionEmbeddding3D(nn.Module):
         pos_x = torch.stack((pos_x[:, :, :, :, 0::2].sin(), pos_x[:, :, :, :, 1::2].cos()), dim=5).flatten(4)
         pos_y = torch.stack((pos_y[:, :, :, :, 0::2].sin(), pos_y[:, :, :, :, 1::2].cos()), dim=5).flatten(4)
 
-        pos_embed = torch.cat((pos_t, pos_y, pos_x), dim=4).permute(0, 4, 1, 2, 3)
+        pos_embed = torch.cat((pos_t, pos_y, pos_x), dim=4).permute(0, 4, 1, 2, 3).contiguous()
         pos_embed.requires_grad_(False)
         
         return pos_embed

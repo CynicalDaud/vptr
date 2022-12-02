@@ -34,7 +34,6 @@ def unzip(file_dir, output_dir):
 def vid2frames(dataset_dir, root_dir, frame_size = None):
     videos_path = Path(dataset_dir)
     vid_file_list = list(videos_path.glob("*.mp4"))
-    print(len(vid_file_list))
     for vid in vid_file_list:
         dir_str = ''
         for s in vid.name.strip().split('.')[:-1]:

@@ -141,7 +141,7 @@ def save_ckpt(Modules_dict, Optimizers_dict, epoch, loss_dict, save_dir):
     if not Path(save_dir).exists():
         Path(save_dir).mkdir(parents=True, exist_ok=True) 
     ckpt_file = Path(save_dir).joinpath(f"epoch_{epoch}.tar")
-    ckpt_codes = read_code_files()
+    ckpt_codes = None
 
     module_state_dict = {}
     for k, m in Modules_dict.items():

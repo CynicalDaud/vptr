@@ -121,11 +121,11 @@ class VPTRFormerNAR(nn.Module):
         self.register_buffer('temporal_pos', temporal_pos)
         
         pos2d = PositionEmbeddding2D()
-        lw_pos = pos2d(N = 1, E = self.d_model, H = window_size, W = window_size)[0, ...].permute(1, 2, 0)
+        lw_pos = pos2d(N = 1, E = self.d_model, H = window_size, W = window_size)[0, ...].permute(1, 2, 0).contiguous()
         self.register_buffer('lw_pos', lw_pos)
 
         pos3d = PositionEmbeddding3D(E = self.d_model, T = T)
-        Tlw_pos = pos3d(NestedTensor(torch.empty(T*1, self.d_model, window_size, window_size), None))[0, ...].permute(1, 2, 3, 0)
+        Tlw_pos = pos3d(NestedTensor(torch.empty(T*1, self.d_model, window_size, window_size), None))[0, ...].permute(1, 2, 3, 0).contiguous()
         self.register_buffer('Tlw_pos', Tlw_pos)
 
         #init queries of Transformer4
@@ -177,7 +177,7 @@ class VPTRFormerFAR(nn.Module):
         self.register_buffer('temporal_pos', temporal_pos)
         
         pos2d = PositionEmbeddding2D()
-        lw_pos = pos2d(N = 1, E = self.d_model, H = window_size, W = window_size)[0, ...].permute(1, 2, 0)
+        lw_pos = pos2d(N = 1, E = self.d_model, H = window_size, W = window_size)[0, ...].permute(1, 2, 0).contiguous()
         self.register_buffer('lw_pos', lw_pos)
 
         self._reset_parameters()
