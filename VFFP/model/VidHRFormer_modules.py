@@ -65,7 +65,6 @@ class VidHRFormerBlockEnc(nn.Module):
         Return: (N, T, H, W, C)
         """
         N, T, H, W, C = x.shape
-        print(x.shape)
         x = x + self.drop_path(self.SLMHSA(self.norm1(x), local_window_pos_embed)) #spatial local window self-attention, and skip connection
         
         #Conv feed-forward, different local window information interacts
