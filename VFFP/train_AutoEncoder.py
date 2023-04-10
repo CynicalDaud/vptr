@@ -17,13 +17,13 @@ from datetime import datetime
 from time import sleep
 from tqdm import tqdm
 
-from customdatasets import SegmentationData
 from model import VPTREnc, VPTRDec, VPTRDisc, init_weights
 from model import GDL, MSELoss, L1Loss, GANLoss
-from utils import get_dataloader
+from utils import get_dataloader, get_data
 from utils import VidCenterCrop, VidPad, VidResize, VidNormalize, VidReNormalize, VidCrop, VidRandomHorizontalFlip, VidRandomVerticalFlip, VidToTensor
 from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, update_summary, write_summary, resume_training
 from utils import set_seed
+import os
 
 set_seed(2021)
 
@@ -114,36 +114,29 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
 
 if __name__ == '__main__':
     run = "1"
+    working_dir = os.getcwd()
+    ckpt_save_dir = Path(working_dir+'trained_ae')
+    tensorboard_save_dir = Path(working_dir+'tensorboard')
 
-    ckpt_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_ckpt/')
-    tensorboard_save_dir = Path('./VPTR_chkpts/MNIST_ResNetAE_MSEGDLgan_tensorboard/'+run)
-    
     # resume_ckpt = ckpt_save_dir.joinpath('epoch_2.tar')
     resume_ckpt = None
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 10
-    num_future_frames = 10
+    num_past_frames = 75
+    num_future_frames = 25
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
-    epochs = 50
+    epochs = 3
     N = 1
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('cuda:0')
 
     #####################Init Dataset ###########################
-    data_set_name = 'MNIST' #see utils.dataset
-    dataset_dir = './MovingMNIST'
-    train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
-
-    print(train_loader.dataset.__getitem__(1)[0].shape)
-    data_set_name = 'TMCS' #see utils.dataset
-    dataset_dir = './ToyMCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, num_past_frames, num_future_frames)
-
-    print(train_loader.dataset.__getitem__(1)[0].shape)
+    data_set_name = 'CSD' #see utils.dataset
+    dataset_dir = working_dir+'data'
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_past_frames, num_future_frames)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -172,8 +165,8 @@ if __name__ == '__main__':
 
     if resume_ckpt is not None:
         loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
-                                                {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, resume_ckpt,
-                                                loss_name_list)
+                                            {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, resume_ckpt,
+                                            loss_name_list)
 
     #####################Training loop ###########################                                            
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
@@ -212,4 +205,5 @@ if __name__ == '__main__':
             epoch_time = datetime.now() - epoch_st
             print(f'epoch {epoch}', EpochAveMeter.meters['AE_total'])
             print(f"Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
+        
             

@@ -13,9 +13,10 @@ from datetime import datetime
 from model import VPTREnc, VPTRDec, VPTRDisc, init_weights, VPTRFormerNAR, VPTRFormerFAR
 from model import GDL, MSELoss, L1Loss, GANLoss, BiPatchNCE
 from utils import KTHDataset, BAIRDataset, MovingMNISTDataset
-from utils import get_dataloader
+from utils import get_dataloader, get_data
 from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, write_summary, resume_training
 from utils import set_seed
+import os
 
 import logging
 
@@ -136,9 +137,11 @@ def FAR_show_sample(VPTR_Enc, VPTR_Dec, VPTR_Transformer, num_pred, sample, save
 
 if __name__ == '__main__':
     set_seed(2021)
-    ckpt_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_FAR_MSEGDL_ckpt')
-    tensorboard_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_FAR_MSEGDL_tensorboard')
-    resume_AE_ckpt = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_ResNetAE_MSEGDLgan001_ckpt').joinpath('epoch_93.tar')
+    working_dir = os.getcwd()
+    ckpt_save_dir = Path(working_dir+'trained_transformer')
+    tensorboard_save_dir = Path(working_dir+'tensorboard/')
+    #change epoch number
+    resume_AE_ckpt = Path(working_dir+'trained_ae').joinpath('epoch_3.tar')
     #resume_ckpt = ckpt_save_dir.joinpath('epoch_179.tar')
     resume_ckpt = None
 
@@ -157,7 +160,7 @@ if __name__ == '__main__':
     num_future_frames = 10
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR
-    epochs = 100
+    epochs = 3
     N = 10
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
@@ -169,11 +172,11 @@ if __name__ == '__main__':
     val_per_epochs = 4
 
     #####################Init Dataset ###########################
-    data_set_name = 'MNIST'
-    dataset_dir = './MovingMNIST'
+    data_set_name = 'CSD'
+    dataset_dir = working_dir+'data'
     test_past_frames = 10
     test_future_frames = 10
-    train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, test_past_frames, test_future_frames)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, test_past_frames, test_future_frames)
 
     #####################Init model###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -225,7 +228,7 @@ if __name__ == '__main__':
             
         loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
         write_summary(summary_writer, loss_dict, train_flag = True)
-        FAR_show_sample(VPTR_Enc, VPTR_Dec, VPTR_Transformer, num_future_frames, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'), test_phase = False)
+        # FAR_show_sample(VPTR_Enc, VPTR_Dec, VPTR_Transformer, num_future_frames, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'), test_phase = False)
 
         if epoch % val_per_epochs == 0:   
             #validation
@@ -237,7 +240,7 @@ if __name__ == '__main__':
             write_summary(summary_writer, loss_dict, train_flag = False)
             
             for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
-                FAR_show_sample(VPTR_Enc, VPTR_Dec, VPTR_Transformer, num_future_frames, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'), test_phase = True)
+                # FAR_show_sample(VPTR_Enc, VPTR_Dec, VPTR_Transformer, num_future_frames, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'), test_phase = True)
                 break
 
         save_ckpt({'VPTR_Transformer': VPTR_Transformer}, 
