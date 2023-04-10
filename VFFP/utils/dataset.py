@@ -15,6 +15,7 @@ import copy
 from typing import List
 from tqdm import tqdm
 import random
+import tifffile
 
 import cv2
 
@@ -88,6 +89,59 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
+
+class CSDDataset(Dataset):
+    """
+    Toy MCS Dataset
+    """
+    def __init__(self, data_path, transform):
+        """
+        both num_past_frames and num_future_frames are limited to be 10
+        Args:
+            data_path --- tiff file path
+            transfrom --- torchvision transforms for the image
+        Return batched Sample:
+            past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
+            future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
+        """
+        self.data_path = data_path
+        self.video_files = os.listdir(data_path)
+
+        self.transform = transform
+    
+    def load_video(self):
+        return tifffile.memmap(self.data_path, mode='r')
+
+    def __len__(self):
+        return len(self.video_files)
+        #return self.data['arr_0'].shape[1]
+
+
+    
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            past_clip: Tensor with shape (num_past_frames, C, H, W)
+            future_clip: Tensor with shape (num_future_frames, C, H, W)
+        """
+        if torch.is_tensor(index):
+            index = index.to_list()
+            
+        video_path = os.path.join(self.data_dir, self.video_files[index])
+        video = self.load_video(video_path)
+
+        # Split the video into past and future frames
+        num_frames = len(video)
+        split_index = num_frames // 2
+        
+        past_frames = [self.transform(frame) for frame in video[:split_index]]
+        future_frames = [self.transform(frame) for frame in video[split_index:]]
+        
+        past_frames = torch.stack(past_frames)
+        future_frames = torch.stack(future_frames)
+        
+        return past_frames, future_frames
+    
 class KTHDataset(object):
     """
     KTH dataset, a wrapper for ClipDataset

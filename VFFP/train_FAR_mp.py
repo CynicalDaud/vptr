@@ -279,16 +279,16 @@ if __name__ == '__main__':
     set_seed(3407)
     args = parser.parse_args()
 
-    ckpt_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/BAIR_FAR_MSEGDL_RPE_mp_ckpt')
-    tensorboard_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/BAIR_FAR_MSEGDL_RPE_mp_tensorboard')
-    resume_AE_ckpt = Path('/home/travail/xiyex/VPTR_ckpts/BAIR_ResNetAE_MSEGDL_ckpt').joinpath('epoch_64.tar')
+    ckpt_save_dir = Path(working_dir+'trained_transformer')
+    tensorboard_save_dir = Path(working_dir+'tensorboard/')
+    resume_AE_ckpt = Path(working_dir+'trained_ae').joinpath('epoch_3.tar')
 
     #resume_Transformer_ckpt = ckpt_save_dir.joinpath('epoch_128.tar')
     resume_Transformer_ckpt = None
 
-    data_set_name = 'BAIR'
+    data_set_name = 'CSD'
     out_layer = 'Tanh'
-    data_set_dir = '/home/travail/xiyex/BAIR'
+    data_set_dir = working_dir+'data'
     dev_set_size = 500
     padding_type = 'zero'
 
@@ -318,10 +318,10 @@ if __name__ == '__main__':
     print("Start training....")
     print(ckpt_save_dir)
     mp.spawn(main_worker,
-             args=(args, world_size, img_channels, encC, encH, encW, dropout, out_layer, rpe, Transformer_lr, max_grad_norm, lam_gan, resume_AE_ckpt,
+            args=(args, world_size, img_channels, encC, encH, encW, dropout, out_layer, rpe, Transformer_lr, max_grad_norm, lam_gan, resume_AE_ckpt,
                 data_set_name, batch_size, data_set_dir, dev_set_size, epochs, ckpt_save_dir, tensorboard_save_dir,
                 resume_Transformer_ckpt, num_encoder_layers, num_past_frames, 
                 num_future_frames, init_Disc, train_Disc,
                 num_workers, show_example_epochs, save_ckpt_epochs, padding_type),
-             nprocs=world_size)
+            nprocs=world_size)
     
