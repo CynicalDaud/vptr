@@ -15,11 +15,12 @@ from model import GDL, MSELoss, L1Loss, GANLoss, BiPatchNCE
 from utils import KTHDataset, BAIRDataset, MovingMNISTDataset, write_code_files
 from utils import VidCenterCrop, VidPad, VidResize, VidNormalize, VidReNormalize, VidCrop, VidRandomHorizontalFlip, VidRandomVerticalFlip, VidToTensor
 from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, write_summary, resume_training
-from utils import set_seed, get_dataloader
+from utils import set_seed, get_dataloader, get_data
 from time import sleep
 from tqdm import tqdm
 
 import logging
+import os
 
 def cal_lossD(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
     pred_fake = VPTR_Disc(fake_imgs.detach().flatten(0, 1))
@@ -140,12 +141,13 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
 
 if __name__ == '__main__':
     set_seed(2021)
-
-    ckpt_save_dir = Path('./VPTR_chkpts')
-    tensorboard_save_dir = Path('./VPTR_chkpts/tensorboard')
+    working_dir = os.getcwd()
+    ckpt_save_dir = Path(working_dir+'trained_transformer')
+    tensorboard_save_dir = Path(working_dir+'tensorboard/')
     #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
     resume_ckpt = None
-    resume_AE_ckpt = Path('./VPTR_chkpts/AE-fs-e100.tar') #The trained AutoEncoder checkpoint file
+    #Change epoch tar file
+    resume_AE_ckpt = Path(working_dir+'trained_ae').joinpath('epoch_3.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
     if not Path(ckpt_save_dir).exists():

@@ -89,6 +89,84 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
+def get_data(batch_size, data_set_dir, test_past_frames = 10, test_future_frames = 10, ngpus = 1, num_workers = 1):
+  train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
+  renorm_transform = VidReNormalize(mean = 0.6013795, std = 2.7570653)
+  train_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+  val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+  test_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+
+  N = batch_size
+  train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+  val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+  test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
+
+  if ngpus > 1:
+      N = batch_size//ngpus
+      train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
+      val_sampler = torch.utils.data.distributed.DistributedSampler(val_set)
+
+      train_loader = DataLoader(train_set, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=train_sampler, drop_last = True)
+      val_loader = DataLoader(val_set, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=val_sampler, drop_last = True)
+
+  return train_loader, val_loader, test_loader, renorm_transform
+
+class CSDDataset(Dataset):
+    """
+    Toy MCS Dataset
+    """
+    def __init__(self, data_path, transform):
+        """
+        both num_past_frames and num_future_frames are limited to be 10
+        Args:
+            data_path --- tiff file path
+            transfrom --- torchvision transforms for the image
+        Return batched Sample:
+            past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
+            future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
+        """
+        self.data_path = data_path
+        # print(data_path)
+        self.video_files = os.listdir(data_path)
+
+        self.transform = transform
+    
+    def load_video(self, video_path):
+        return tifffile.memmap(video_path, mode='r+')
+
+    def __len__(self):
+        return len(self.video_files)
+        #return self.data['arr_0'].shape[1]
+
+
+    
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            past_clip: Tensor with shape (num_past_frames, C, H, W)
+            future_clip: Tensor with shape (num_future_frames, C, H, W)
+        """
+        if torch.is_tensor(index):
+            index = index.to_list()
+            
+        video_path = os.path.join(self.data_path, self.video_files[index])
+        video = self.load_video(video_path)
+
+        # Split the video into past and future frames
+        num_frames = len(video)
+        split_index = num_frames // 2
+        
+        # past_frames = [self.transform(frame) for frame in video[:split_index]]
+        # future_frames = [self.transform(frame) for frame in video[split_index:]]
+
+        past_frames = video[:15]
+        future_frames = video[15:20]
+        
+        past_frames = torch.from_numpy(past_frames).unsqueeze(1)
+        future_frames = torch.from_numpy(future_frames).unsqueeze(1)
+        print(f'past frames: {past_frames.shape}')
+        
+        return past_frames, future_frames
 
 class CSDDataset(Dataset):
     """
