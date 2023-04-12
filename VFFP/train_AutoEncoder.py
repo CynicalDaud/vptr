@@ -114,7 +114,7 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
 
 if __name__ == '__main__':
     run = "1"
-    working_dir = os.getcwd()
+    working_dir = '/home/shared/Neurotic/'
     ckpt_save_dir = Path(working_dir+'trained_ae')
     tensorboard_save_dir = Path(working_dir+'tensorboard')
 
@@ -135,8 +135,8 @@ if __name__ == '__main__':
 
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
-    dataset_dir = working_dir+'data'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_past_frames, num_future_frames)
+    dataset_dir = working_dir+'MCS/normalized'
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_range = 1000)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)

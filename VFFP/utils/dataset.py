@@ -89,10 +89,10 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
-def get_data(batch_size, data_set_dir, test_past_frames = 10, test_future_frames = 10, ngpus = 1, num_workers = 1):
+def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_range = 100):
   train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
   renorm_transform = VidReNormalize(mean = 0.6013795, std = 2.7570653)
-  data = CSDDataset(data_path=data_set_dir, transform=train_transform)
+  data = CSDDataset(data_path=data_set_dir, transform=train_transform, video_range = video_range, num_frames=num_frames)
 #   val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
 #   test_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
 
@@ -101,7 +101,7 @@ def get_data(batch_size, data_set_dir, test_past_frames = 10, test_future_frames
 #   val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
 #   test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
   
-  train_split, test_split, val_split = torch.utils.data.random_split(data, [60, 20, 20])
+  train_split, test_split, val_split = torch.utils.data.random_split(data, [0.6, 0.2, 0.2])
 
   train_loader = DataLoader(train_split)
   test_loader = DataLoader(test_split)
@@ -133,17 +133,17 @@ class CSDDataset(Dataset):
         """
         
         self.data_path = data_path
-
         self.video_files = os.listdir(data_path)
-
         self.transform = transform
+        self.video_range = video_range
+        self.num_frames = num_frames
         
         self.samples = []
         for subdir in os.listdir(data_path):
-            for file_name in os.listdir(subdir):
-                if "baseline_norm" in file_name:
-                    for i in range(0, video_range, num_frames):
-                        self.samples.append((f'{subdir}/{file_name}', i))
+          for file_name in os.listdir(f'{data_path}/{subdir}'):
+              if "baseline_norm" in file_name:
+                  for i in range(0, self.video_range, self.num_frames):
+                      self.samples.append((f'{subdir}/{file_name}', i))
         
     
     def load_video(self, video_path):
@@ -165,6 +165,7 @@ class CSDDataset(Dataset):
             index = index.to_list()
         
         video_path, start_index = self.samples[index]
+        video_path = f'{self.data_path}/{video_path}'
         video = self.load_video(video_path)
 
         # Split the video into past and future frames
@@ -173,8 +174,8 @@ class CSDDataset(Dataset):
         
         # past_frames = [self.transform(frame) for frame in video[:split_index]]
         # future_frames = [self.transform(frame) for frame in video[split_index:]]
-        future_range = self.num_frames / 4
-        past_range = future_range * 3
+        future_range = int(self.num_frames / 4)
+        past_range = int(future_range * 3)
         
         p_end = start_index+past_range
         
