@@ -13,7 +13,7 @@ from pathlib import Path
 import os
 import copy
 from typing import List
-from tqdm import tqdm
+from tqdm import tqdms
 import random
 import tifffile
 
@@ -92,22 +92,28 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 def get_data(batch_size, data_set_dir, test_past_frames = 10, test_future_frames = 10, ngpus = 1, num_workers = 1):
   train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
   renorm_transform = VidReNormalize(mean = 0.6013795, std = 2.7570653)
-  train_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
-  val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
-  test_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+  data = CSDDataset(data_path=data_set_dir, transform=train_transform)
+#   val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+#   test_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
 
   N = batch_size
-  train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
-  val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
-  test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
+#   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+#   val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+#   test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
+  
+  train_split, test_split, val_split = torch.utils.data.random_split(data, [60, 20, 20])
+
+  train_loader = DataLoader(train_split)
+  test_loader = DataLoader(test_split)
+  val_loader = DataLoader(val_split)
 
   if ngpus > 1:
       N = batch_size//ngpus
-      train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
-      val_sampler = torch.utils.data.distributed.DistributedSampler(val_set)
+      train_sampler = torch.utils.data.distributed.DistributedSampler(train_split)
+      val_sampler = torch.utils.data.distributed.DistributedSampler(val_split)
 
-      train_loader = DataLoader(train_set, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=train_sampler, drop_last = True)
-      val_loader = DataLoader(val_set, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=val_sampler, drop_last = True)
+      train_loader = DataLoader(train_split, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=train_sampler, drop_last = True)
+      val_loader = DataLoader(val_split, batch_size=N, shuffle=False, pin_memory=True, num_workers=num_workers, sampler=val_sampler, drop_last = True)
 
   return train_loader, val_loader, test_loader, renorm_transform
 
@@ -115,7 +121,7 @@ class CSDDataset(Dataset):
     """
     Toy MCS Dataset
     """
-    def __init__(self, data_path, transform):
+    def __init__(self, data_path, transform, video_range, num_frames):
         """
         both num_past_frames and num_future_frames are limited to be 10
         Args:
@@ -125,17 +131,26 @@ class CSDDataset(Dataset):
             past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
             future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
         """
+        
         self.data_path = data_path
-        # print(data_path)
+
         self.video_files = os.listdir(data_path)
 
         self.transform = transform
+        
+        self.samples = []
+        for subdir in os.listdir(data_path):
+            for file_name in os.listdir(subdir):
+                if "baseline_norm" in file_name:
+                    for i in range(0, video_range, num_frames):
+                        self.samples.append((f'{subdir}/{file_name}', i))
+        
     
     def load_video(self, video_path):
         return tifffile.memmap(video_path, mode='r+')
 
     def __len__(self):
-        return len(self.video_files)
+        return len(self.samples)
         #return self.data['arr_0'].shape[1]
 
 
@@ -148,19 +163,23 @@ class CSDDataset(Dataset):
         """
         if torch.is_tensor(index):
             index = index.to_list()
-            
-        video_path = os.path.join(self.data_path, self.video_files[index])
+        
+        video_path, start_index = self.samples[index]
         video = self.load_video(video_path)
 
         # Split the video into past and future frames
-        num_frames = len(video)
-        split_index = num_frames // 2
+        # num_frames = len(video)
+        # split_index = num_frames // 2
         
         # past_frames = [self.transform(frame) for frame in video[:split_index]]
         # future_frames = [self.transform(frame) for frame in video[split_index:]]
-
-        past_frames = video[:15]
-        future_frames = video[15:20]
+        future_range = self.num_frames / 4
+        past_range = future_range * 3
+        
+        p_end = start_index+past_range
+        
+        past_frames = video[start_index:p_end]
+        future_frames = video[p_end:p_end+future_range]
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)
@@ -168,57 +187,57 @@ class CSDDataset(Dataset):
         
         return past_frames, future_frames
 
-class CSDDataset(Dataset):
-    """
-    Toy MCS Dataset
-    """
-    def __init__(self, data_path, transform):
-        """
-        both num_past_frames and num_future_frames are limited to be 10
-        Args:
-            data_path --- tiff file path
-            transfrom --- torchvision transforms for the image
-        Return batched Sample:
-            past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
-            future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
-        """
-        self.data_path = data_path
-        self.video_files = os.listdir(data_path)
+# class CSDDataset(Dataset):
+#     """
+#     Toy MCS Dataset
+#     """
+#     def __init__(self, data_path, transform):
+#         """
+#         both num_past_frames and num_future_frames are limited to be 10
+#         Args:
+#             data_path --- tiff file path
+#             transfrom --- torchvision transforms for the image
+#         Return batched Sample:
+#             past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
+#             future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
+#         """
+#         self.data_path = data_path
+#         self.video_files = os.listdir(data_path)
 
-        self.transform = transform
+#         self.transform = transform
     
-    def load_video(self):
-        return tifffile.memmap(self.data_path, mode='r')
+#     def load_video(self):
+#         return tifffile.memmap(self.data_path, mode='r')
 
-    def __len__(self):
-        return len(self.video_files)
-        #return self.data['arr_0'].shape[1]
+#     def __len__(self):
+#         return len(self.video_files)
+#         #return self.data['arr_0'].shape[1]
 
 
     
-    def __getitem__(self, index: int):
-        """
-        Returns:
-            past_clip: Tensor with shape (num_past_frames, C, H, W)
-            future_clip: Tensor with shape (num_future_frames, C, H, W)
-        """
-        if torch.is_tensor(index):
-            index = index.to_list()
+#     def __getitem__(self, index: int):
+#         """
+#         Returns:
+#             past_clip: Tensor with shape (num_past_frames, C, H, W)
+#             future_clip: Tensor with shape (num_future_frames, C, H, W)
+#         """
+#         if torch.is_tensor(index):
+#             index = index.to_list()
             
-        video_path = os.path.join(self.data_dir, self.video_files[index])
-        video = self.load_video(video_path)
+#         video_path = os.path.join(self.data_dir, self.video_files[index])
+#         video = self.load_video(video_path)
 
-        # Split the video into past and future frames
-        num_frames = len(video)
-        split_index = num_frames // 2
+#         # Split the video into past and future frames
+#         num_frames = len(video)
+#         split_index = num_frames // 2
         
-        past_frames = [self.transform(frame) for frame in video[:split_index]]
-        future_frames = [self.transform(frame) for frame in video[split_index:]]
+#         past_frames = [self.transform(frame) for frame in video[:split_index]]
+#         future_frames = [self.transform(frame) for frame in video[split_index:]]
         
-        past_frames = torch.stack(past_frames)
-        future_frames = torch.stack(future_frames)
+#         past_frames = torch.stack(past_frames)
+#         future_frames = torch.stack(future_frames)
         
-        return past_frames, future_frames
+#         return past_frames, future_frames
     
 class KTHDataset(object):
     """
