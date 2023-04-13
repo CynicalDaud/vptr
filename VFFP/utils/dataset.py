@@ -90,27 +90,32 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
+########################################  Version 2 ######################################## 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_range = 100):
   train_transform = transforms.Compose([VidResize((1, 128, 128))])
   renorm_transform = VidReNormalize(mean = 0.6013795, std = 2.7570653)
-  data = CSDDataset(data_path=data_set_dir, transform=train_transform, video_range = video_range, num_frames=num_frames)
-#   val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
-#   test_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
+
+  samples = []
+  for subdir in os.listdir(data_set_dir):
+    for file_name in os.listdir(f'{data_set_dir}/{subdir}'):
+        if "baseline_norm" in file_name:
+            for i in range(0, video_range+1, num_frames):
+                samples.append((f'{subdir}/{file_name}', i))
+
+  train_len = int(len(samples)*0.6)
+  test_len = int(len(samples)*0.2)
+  val_len = len(samples) - train_len - test_len
+        
+  train_split, test_split, val_split = torch.utils.data.random_split(samples, [train_len, test_len, val_len])
+
+  train_set = CSDDataset(data_path= data_set_dir, split=train_split, transform=train_transform, video_range = video_range, num_frames=num_frames)
+  val_set = CSDDataset(data_path= data_set_dir, split=test_split, transform=train_transform, video_range = video_range, num_frames=num_frames)
+  test_set = CSDDataset(data_path= data_set_dir, split=val_split, transform=train_transform, video_range = video_range, num_frames=num_frames)
 
   N = batch_size
-#   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
-#   val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
-#   test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
-  
-  train_split, test_split, val_split = torch.utils.data.random_split(data, [0.6, 0.2, 0.2])
-#   print(len(train_split))
-#   print(train_split)
-  # print(test_split.shape)
-  # print(val_split.shape)
-
-  train_loader = DataLoader(train_split)
-  test_loader = DataLoader(test_split)
-  val_loader = DataLoader(val_split)
+  train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+  val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
+  test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
 
   if ngpus > 1:
       N = batch_size//ngpus
@@ -122,11 +127,12 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
 
   return train_loader, val_loader, test_loader, renorm_transform
 
+########################################  Version 2 ######################################## 
 class CSDDataset(Dataset):
     """
     Toy MCS Dataset
     """
-    def __init__(self, data_path, transform, video_range, num_frames):
+    def __init__(self, data_path, split, transform, video_range, num_frames):
         """
         both num_past_frames and num_future_frames are limited to be 10
         Args:
@@ -136,26 +142,18 @@ class CSDDataset(Dataset):
             past_clip --- Tensor with shape (batch_size, num_past_frames, C, H, W)
             future_clip --- Tensor with shape (batch_size, num_future_frames, C, H, W)
         """
-        
+
         self.data_path = data_path
-        self.video_files = os.listdir(data_path)
+        self.video_files = split
         self.transform = transform
         self.video_range = video_range
         self.num_frames = num_frames
-        
-        self.samples = []
-        for subdir in os.listdir(data_path):
-          for file_name in os.listdir(f'{data_path}/{subdir}'):
-              if "baseline_norm" in file_name:
-                  for i in range(0, self.video_range+1, self.num_frames):
-                      self.samples.append((f'{subdir}/{file_name}', i))
-        
     
     def load_video(self, video_path):
         return tifffile.memmap(video_path, mode='r+')
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.video_files)
         #return self.data['arr_0'].shape[1]
 
 
@@ -169,7 +167,7 @@ class CSDDataset(Dataset):
         if torch.is_tensor(index):
             index = index.to_list()
         
-        video_path, start_index = self.samples[index]
+        video_path, start_index = self.video_files[index]
         video_path = f'{self.data_path}/{video_path}'
         video = self.load_video(video_path)
 
