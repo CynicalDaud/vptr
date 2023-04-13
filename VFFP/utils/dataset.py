@@ -6,6 +6,7 @@ import torchvision.utils as vutils
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, ConcatDataset, random_split
 from torch import Tensor
+import torch.nn.functional as F
 
 import numpy as np
 from PIL import Image
@@ -90,7 +91,7 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
     return train_loader, val_loader, test_loader, renorm_transform
 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_range = 100):
-  train_transform = transforms.Compose([VidRandomHorizontalFlip(0.5), VidRandomVerticalFlip(0.5), VidToTensor()])
+  train_transform = transforms.Compose([VidResize((1, 128, 128))])
   renorm_transform = VidReNormalize(mean = 0.6013795, std = 2.7570653)
   data = CSDDataset(data_path=data_set_dir, transform=train_transform, video_range = video_range, num_frames=num_frames)
 #   val_set = CSDDataset(data_path=data_set_dir, transform=train_transform)
@@ -102,6 +103,10 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
 #   test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
   
   train_split, test_split, val_split = torch.utils.data.random_split(data, [0.6, 0.2, 0.2])
+#   print(len(train_split))
+#   print(train_split)
+  # print(test_split.shape)
+  # print(val_split.shape)
 
   train_loader = DataLoader(train_split)
   test_loader = DataLoader(test_split)
@@ -142,7 +147,7 @@ class CSDDataset(Dataset):
         for subdir in os.listdir(data_path):
           for file_name in os.listdir(f'{data_path}/{subdir}'):
               if "baseline_norm" in file_name:
-                  for i in range(0, self.video_range, self.num_frames):
+                  for i in range(0, self.video_range+1, self.num_frames):
                       self.samples.append((f'{subdir}/{file_name}', i))
         
     
@@ -178,12 +183,14 @@ class CSDDataset(Dataset):
         past_range = int(future_range * 3)
         
         p_end = start_index+past_range
-        
         past_frames = video[start_index:p_end]
         future_frames = video[p_end:p_end+future_range]
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)
+        
+        past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
+        future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
         print(f'past frames: {past_frames.shape}')
         
         return past_frames, future_frames
