@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
 
@@ -116,7 +116,7 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
 
 if __name__ == '__main__':
     run = "1"
-    working_dir = 'gpfs/home/shared/Neurotic/'
+    working_dir = '/gpfs/home/shared/Neurotic/'
     ckpt_save_dir = Path(working_dir+'trained_ae')
     tensorboard_save_dir = Path(working_dir+'tensorboard')
 

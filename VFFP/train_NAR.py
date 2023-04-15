@@ -135,8 +135,11 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
             past_frames = torch.cat([past_frames, torch.zeros(N, TF-TP, C, H, W).to(past_frames.device)], dim = 1)
             rec_past_frames = torch.cat([rec_past_frames, torch.zeros(N, TF-TP, C, H, W).to(rec_past_frames.device)], dim = 1)
 
-        visualize_batch_clips(past_frames[0:idx, :, ...], future_frames[0:idx, :, ...], pred_future_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'pred')
-        visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
+
+        ## TO FIX:
+        
+        #visualize_batch_clips(past_frames[0:idx, :, ...], future_frames[0:idx, :, ...], pred_future_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'pred')
+        #visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 
 if __name__ == '__main__':

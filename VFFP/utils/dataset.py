@@ -14,11 +14,11 @@ from pathlib import Path
 import os
 import copy
 from typing import List
-from tqdm import tqdms
+from tqdm import tqdm
 import random
 import tifffile
 
-import cv2
+#import cv2
 
 def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 10, test_future_frames = 10, ngpus = 1, num_workers = 1):
     if data_set_name == 'KTH':
@@ -97,11 +97,10 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
 
   samples = []
   for subdir in os.listdir(data_set_dir):
-    for file_name in os.listdir(f'{data_set_dir}/{subdir}'):
+    for file_name in os.listdir(f'{data_set_dir}/{subdir}/normalized'):
         if "baseline_norm" in file_name:
             for i in range(0, video_range+1, num_frames):
-                samples.append((f'{subdir}/{file_name}', i))
-
+                samples.append((f'{subdir}/normalized/{file_name}', i))
   train_len = int(len(samples)*0.6)
   test_len = int(len(samples)*0.2)
   val_len = len(samples) - train_len - test_len
@@ -189,7 +188,7 @@ class CSDDataset(Dataset):
         
         past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
         future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
-        print(f'past frames: {past_frames.shape}')
+        #print(f'past frames: {past_frames.shape}')
         
         return past_frames, future_frames
 
