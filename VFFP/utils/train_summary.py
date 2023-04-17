@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 from pathlib import Path
 import shutil
 from collections import OrderedDict
-
+import torch.nn.functional as F
 
 def resume_training(module_dict, optimizer_dict, resume_ckpt, loss_name_list = None, map_location = None):
     modules_state_dict, optimizers_state_dict, start_epoch, history_loss_dict, _ = load_ckpt(resume_ckpt, map_location)
