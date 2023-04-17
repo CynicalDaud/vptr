@@ -42,8 +42,8 @@ def cal_lossG(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
     pred_fake = VPTR_Disc(fake_imgs.flatten(0, 1))
     loss_G_gan = gan_loss(pred_fake, True)
     real_imgs = F.interpolate(real_imgs, size=(1, 124, 124), mode='nearest')
-    print(f"fake_imgs: {fake_imgs.shape}")
-    print(f"real_imgs: {real_imgs.shape}")
+    #print(f"fake_imgs: {fake_imgs.shape}")
+    #print(f"real_imgs: {real_imgs.shape}")
     AE_MSE_loss = mse_loss(fake_imgs, real_imgs)
     AE_GDL_loss = gdl_loss(real_imgs, fake_imgs)
     #AE_L1_loss = l1_loss(fake_imgs, real_imgs)
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
-    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'Tanh').to(device) #Sigmoid for MNIST, Tanh for KTH and BAIR
+    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'Sigmoid').to(device) #Sigmoid for MNIST, Tanh for KTH and BAIR
     VPTR_Disc = VPTRDisc(img_channels, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d).to(device)
     init_weights(VPTR_Disc)
     init_weights(VPTR_Enc)
