@@ -188,14 +188,8 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
     
     def append_frames(batch, max_clip_length):
         d = max_clip_length - batch.shape[1]
-        batch = torch.cat([batch, batch[:, -2:-1, :, :, :].repeat(1, d, 1, 1, 1)], dim = 1)
+        batch = torch.cat([batch, batch[:, -1, :, :, :].repeat(1, d, 1, 1, 1)], dim = 1)
         return batch
-
-    print()
-    print(f"GT-PAST: {gt_past_frames_batch.shape}")
-    print(f"GT-FUTURE: {gt_future_frames_batch.shape}")
-    print(f"PRED: {pred_frames_batch.shape}")
-    print()
     
     max_length = max(gt_future_frames_batch.shape[1], gt_past_frames_batch.shape[1])
     if gt_past_frames_batch.shape[1] < max_length:
@@ -204,12 +198,6 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         gt_future_frames_batch = append_frames(gt_future_frames_batch, max_length)
         pred_frames_batch = append_frames(pred_frames_batch, max_length)
     
-    print()
-    print(f"GT-PAST: {gt_past_frames_batch.shape}")
-    print(f"GT-FUTURE: {gt_future_frames_batch.shape}")
-    print(f"PRED: {pred_frames_batch.shape}")
-    print()
-    gt_past_frames_batch = F.interpolate(gt_past_frames_batch, size=(1, 124, 124), mode='nearest')
     batch = torch.cat([gt_past_frames_batch, gt_future_frames_batch, pred_frames_batch], dim = -1) #shape (N, clip_length, C, H, 3W)
     batch = batch.cpu()
     N = batch.shape[0]
