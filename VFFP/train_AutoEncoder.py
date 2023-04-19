@@ -41,7 +41,6 @@ def cal_lossD(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
 def cal_lossG(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
     pred_fake = VPTR_Disc(fake_imgs.flatten(0, 1))
     loss_G_gan = gan_loss(pred_fake, True)
-    real_imgs = F.interpolate(real_imgs, size=(1, 124, 124), mode='nearest')
     #print(f"fake_imgs: {fake_imgs.shape}")
     #print(f"real_imgs: {real_imgs.shape}")
     AE_MSE_loss = mse_loss(fake_imgs, real_imgs)
