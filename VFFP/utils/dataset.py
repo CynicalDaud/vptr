@@ -112,7 +112,7 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                         video_length = video_limit
 
                 # Use tqdm to create a progress bar that shows the progress of processing each file
-                for i in range(0, video_length+1, num_frames):
+                for i in range(0, video_length-num_frames+1, num_frames):
                     samples.append((f'{video_path}', i))
 
   train_len = int(len(samples)*0.6)
