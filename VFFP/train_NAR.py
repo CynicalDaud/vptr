@@ -144,9 +144,9 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
 
 if __name__ == '__main__':
     set_seed(2021)
-    working_dir = os.getcwd()
-    ckpt_save_dir = Path(working_dir+'trained_transformer')
-    tensorboard_save_dir = Path(working_dir+'tensorboard/')
+    working_dir = '/gpfs/home/shared/Neurotic/'
+    ckpt_save_dir = Path(working_dir+'trained_ae')
+    tensorboard_save_dir = Path(working_dir+'tensorboard')
     #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
     resume_ckpt = None
     #Change epoch tar file
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     num_future_frames = 10
     encH, encW, encC = 8, 8, 528
     img_channels = 1
-    epochs = 100
+    epochs = 10
     N = 1
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
@@ -185,10 +185,10 @@ if __name__ == '__main__':
     save_ckpt_epochs = 2
 
     #####################Init Dataset ###########################
-    data_set_name = 'MNIST'
-    dataset_dir = './MovingMNIST'
-    test_past_frames = 2
-    test_future_frames = 10
+    data_set_name = 'CSD'
+    dataset_dir = working_dir+'MCS'
+    test_past_frames = 75
+    test_future_frames = 25
     train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, test_past_frames, test_future_frames)
 
     #####################Init model###########################
