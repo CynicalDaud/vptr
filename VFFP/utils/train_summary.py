@@ -181,6 +181,8 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
             clip = renorm_transform(clip)
             clip = torch.clamp(clip, min = 0., max = 1.0)
         for i in range(clip.shape[0]):
+            # Convert the pixel data to grayscale
+            clip = (clip * 255).astype('uint8')
             img = transforms.ToPILImage()(clip[i, ...])
             imgs.append(img)
 

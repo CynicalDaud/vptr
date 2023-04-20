@@ -25,6 +25,8 @@ from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, Average
 from utils import set_seed
 import os
 
+from PIL import Image
+
 set_seed(2021)
 
 def cal_lossD(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
@@ -52,7 +54,7 @@ def cal_lossG(VPTR_Disc, fake_imgs, real_imgs, lam_gan):
     return loss_G, loss_G_gan, AE_MSE_loss, AE_GDL_loss
 
 def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True):
-    past_frames, future_frames = sample
+    past_frames, future_frames, _ = sample
     past_frames = past_frames.to(device)
     future_frames = future_frames.to(device)
     x = torch.cat([past_frames, future_frames], dim = 1)
@@ -99,7 +101,7 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
     VPTR_Enc = VPTR_Enc.eval()
     VPTR_Dec = VPTR_Dec.eval()
     with torch.no_grad():
-        past_frames, future_frames = sample
+        past_frames, future_frames, _ = sample
         past_frames = past_frames.to(device)
         future_frames = future_frames.to(device)
 
@@ -128,7 +130,7 @@ if __name__ == '__main__':
     num_future_frames = 25
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
-    epochs = 3
+    epochs = 50
     N = 1
     AE_lr = 2e-4
     lam_gan = 0.01
@@ -137,7 +139,7 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_range = 100)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 250, video_limit = 500)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -175,13 +177,52 @@ if __name__ == '__main__':
         #Train
         EpochAveMeter = AverageMeters(loss_name_list)
         with tqdm(enumerate(train_loader, 0), unit=" batch", total=len(train_loader)) as tepoch:
+            frames = []
             for idx, sample in tepoch:
                 tepoch.set_description(f"Epoch {epoch}")
                 iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
                 EpochAveMeter.iter_update(iter_loss_dict)
                 update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
                 tepoch.set_postfix(loss=iter_loss_dict["AE_total"])
+
+                # Get the first frame
+                #past_frames, future_frames, video_path = sample
+                #past_frames = past_frames.to(device)
+                #future_frames = future_frames.to(device)
+                #x = torch.cat([past_frames, future_frames], dim = 1).cpu()
+
+                #first_frame = x[0,0,0,...].numpy()
+                # Convert the pixel data to grayscale
+                #gray_frame = (first_frame * 255).astype('uint8')
+                # Resize the grayscale frame to a fixed size
+                #gray_frame = Image.fromarray(gray_frame)
+                #gray_frame = np.array(gray_frame)
+                # Add the grayscale frame to the list
+                #frames.append(Image.fromarray(gray_frame, mode='L'))
+
                 sleep(0.1)
+
+            # Determine the number of rows and columns needed to arrange the frames in a grid
+            num_frames = len(frames)
+            num_cols = int(num_frames ** 0.5)
+            num_rows = (num_frames + num_cols - 1) // num_cols
+
+            # Create a new image to hold the grid of frames
+            grid_width = frames[0].width * num_cols
+            grid_height = frames[0].height * num_rows
+            grid = Image.new(mode='L', size=(grid_width, grid_height), color=255)
+
+            # Paste each frame onto the grid
+            for i, frame in enumerate(frames):
+                col = i % num_cols
+                row = i // num_cols
+                x = col * frame.width
+                y = row * frame.height
+                grid.paste(frame, (x, y))
+
+            # Save the grid as a PNG file
+            grid.save("ALL.png")
+
             write_summary(summary_writer, loss_dict, train_flag = True)
 
             loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)

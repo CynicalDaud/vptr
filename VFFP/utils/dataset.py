@@ -91,25 +91,39 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
     return train_loader, val_loader, test_loader, renorm_transform
 
 ########################################  Version 2 ######################################## 
-def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_range = 100):
-  train_transform = transforms.Compose([VidResize((1, 128, 128))])
+def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_limit = None):
   renorm_transform = None
-
   samples = []
-  for subdir in os.listdir(data_set_dir):
-    for file_name in os.listdir(f'{data_set_dir}/{subdir}/normalized'):
-        if "baseline_norm" in file_name:
-            for i in range(0, video_range+1, num_frames):
-                samples.append((f'{subdir}/normalized/{file_name}', i))
+
+  with tqdm(iterable=None, desc='Processing Files', position=0) as pbar:
+    for root, dirs, files in os.walk("."):
+        for file in files:
+            pbar.update(1)
+            if file.endswith(".tif") and "baseline_norm" in file.lower():
+                video_path = os.path.join(root, file)
+                video_memmap = tifffile.memmap(video_path, mode='r+')
+                video_length = video_memmap.shape[0]
+                video_memmap = None
+
+                pbar.set_description(f"Processing {video_path}")
+
+                if video_limit:
+                    if video_limit < video_length:
+                        video_length = video_limit
+
+                # Use tqdm to create a progress bar that shows the progress of processing each file
+                for i in range(0, video_length+1, num_frames):
+                    samples.append((f'{video_path}', i))
+
   train_len = int(len(samples)*0.6)
   test_len = int(len(samples)*0.2)
   val_len = len(samples) - train_len - test_len
         
   train_split, test_split, val_split = torch.utils.data.random_split(samples, [train_len, test_len, val_len])
 
-  train_set = MCSDataset(data_path= data_set_dir, split=train_split, num_frames=num_frames)
-  val_set = MCSDataset(data_path= data_set_dir, split=test_split, num_frames=num_frames)
-  test_set = MCSDataset(data_path= data_set_dir, split=val_split, num_frames=num_frames)
+  train_set = MCSDataset(split=train_split, num_frames=num_frames)
+  val_set = MCSDataset(split=test_split, num_frames=num_frames)
+  test_set = MCSDataset(split=val_split, num_frames=num_frames)
 
   N = batch_size
   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
@@ -131,7 +145,7 @@ class MCSDataset(Dataset):
     """
     CSD/MCS
     """
-    def __init__(self, data_path, split, num_frames, past_future_ratio=0.75):
+    def __init__(self, split, num_frames, past_future_ratio=0.75):
         """
         both num_past_frames and num_future_frames are limited to be 10
         Args:
@@ -144,7 +158,6 @@ class MCSDataset(Dataset):
             future_frames --- Tensor with shape (batch_size, num_future_frames, C, H, W)
         """
 
-        self.data_path = data_path
         self.video_files = split
         self.num_frames = num_frames
         self.pf_ratio = past_future_ratio
@@ -154,7 +167,6 @@ class MCSDataset(Dataset):
 
     def __len__(self):
         return len(self.video_files)
-        #return self.data['arr_0'].shape[1]
     
     def __getitem__(self, index: int):
         """
@@ -166,7 +178,6 @@ class MCSDataset(Dataset):
             index = index.to_list()
         
         video_path, start_index = self.video_files[index]
-        video_path = f'{self.data_path}/{video_path}'
         video = self.load_video(video_path)
 
         past_range = int(self.num_frames*self.pf_ratio)
@@ -182,7 +193,7 @@ class MCSDataset(Dataset):
         past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
         future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
         
-        return past_frames, future_frames
+        return past_frames, future_frames, video_path
     
 class KTHDataset(object):
     """
@@ -434,17 +445,17 @@ class ToyMCSDataset(Dataset):
         if torch.is_tensor(index):
             index = index.to_list()
             
-# psi is idx of start of clip = clip_idx[0][0]
-# pei is idx of end of clip = psi + clip_idx[0][1]
-# clip_idx[0] = [psi, len]
-# clip_idx    = [[psi,len],[fsi,len]]
-# 'clips      = [[[psi1,len1],[psi2,len2]],[[fsi1,len1][fsi2len2]]]
-# pei-psi = length of clip
-# clip_idx = [[psi, pei-psi]] = data[clips][psi,idx,len]
+        # psi is idx of start of clip = clip_idx[0][0]
+        # pei is idx of end of clip = psi + clip_idx[0][1]
+        # clip_idx[0] = [psi, len]
+        # clip_idx    = [[psi,len],[fsi,len]]
+        # 'clips      = [[[psi1,len1],[psi2,len2]],[[fsi1,len1][fsi2len2]]]
+        # pei-psi = length of clip
+        # clip_idx = [[psi, pei-psi]] = data[clips][psi,idx,len]
 
 
-#(2,2,2) = [ -[--][--]- -[--][--]- ]    
-# 'clips' has to be array containing as many elements as there are starting points. Each of those needs as many elements as index and each of those as many as end points
+        #(2,2,2) = [ -[--][--]- -[--][--]- ]    
+        # 'clips' has to be array containing as many elements as there are starting points. Each of those needs as many elements as index and each of those as many as end points
 
         clip_index = self.data['clips'][:, index, :]
 
