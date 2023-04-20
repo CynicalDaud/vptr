@@ -179,15 +179,16 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         imgs = []
         if renorm_transform is not None:
             clip = renorm_transform(clip)
-            clip = torch.clamp(clip, min = 0., max = 1.0)
+            clip = torch.clamp(clip, min=0., max=1.0)
         for i in range(clip.shape[0]):
-            # Convert the pixel data to grayscale
-            clip = (clip * 255).astype('uint8')
             img = transforms.ToPILImage()(clip[i, ...])
+            # Convert image to grayscale
+            img = img.convert('L')
             imgs.append(img)
+        # Save grayscale GIF
+        imgs[0].save(fp=file_name, format='GIF', append_images=imgs[1:], save_all=True)
 
-        imgs[0].save(str(Path(file_name).absolute()), save_all = True, append_images = imgs[1:])
-    
+        
     def append_frames(batch, max_clip_length):
         d = max_clip_length - batch.shape[1]
         batch = torch.cat([batch, batch[:, -1, :, :, :].repeat(1, d, 1, 1, 1)], dim = 1)

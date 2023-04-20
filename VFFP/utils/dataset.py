@@ -98,13 +98,13 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
   with tqdm(iterable=None, desc='Processing Files', position=0) as pbar:
     for root, dirs, files in os.walk("."):
         for file in files:
-            pbar.update(1)
             if file.endswith(".tif") and "baseline_norm" in file.lower():
                 video_path = os.path.join(root, file)
                 video_memmap = tifffile.memmap(video_path, mode='r+')
                 video_length = video_memmap.shape[0]
                 video_memmap = None
-
+                
+                pbar.update(1)
                 pbar.set_description(f"Processing {video_path}")
 
                 if video_limit:

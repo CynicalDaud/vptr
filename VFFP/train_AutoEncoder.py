@@ -139,7 +139,7 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 250, video_limit = 500)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 250, video_limit = None)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -201,27 +201,6 @@ if __name__ == '__main__':
                 #frames.append(Image.fromarray(gray_frame, mode='L'))
 
                 sleep(0.1)
-
-            # Determine the number of rows and columns needed to arrange the frames in a grid
-            num_frames = len(frames)
-            num_cols = int(num_frames ** 0.5)
-            num_rows = (num_frames + num_cols - 1) // num_cols
-
-            # Create a new image to hold the grid of frames
-            grid_width = frames[0].width * num_cols
-            grid_height = frames[0].height * num_rows
-            grid = Image.new(mode='L', size=(grid_width, grid_height), color=255)
-
-            # Paste each frame onto the grid
-            for i, frame in enumerate(frames):
-                col = i % num_cols
-                row = i // num_cols
-                x = col * frame.width
-                y = row * frame.height
-                grid.paste(frame, (x, y))
-
-            # Save the grid as a PNG file
-            grid.save("ALL.png")
 
             write_summary(summary_writer, loss_dict, train_flag = True)
 
