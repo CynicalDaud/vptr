@@ -1,6 +1,9 @@
 mnist/**
 mcx/**
+MCS/**
+Training Data/**
 Archive.zip
 VFFP/ToyMCS**
 VFFP/MovingMNIST/**
+VFFP/MCS/**
 VFFP/VPTR_chkpts/**
