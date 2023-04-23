@@ -116,10 +116,11 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
         visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 if __name__ == '__main__':
-    run = "1"
+    run = "20frame-all"
     working_dir = '/gpfs/home/shared/Neurotic/'
-    ckpt_save_dir = Path(working_dir+'trained_ae')
-    tensorboard_save_dir = Path(working_dir+'tensorboard')
+    ckpt_save_dir = Path(working_dir+'trained_ae_'+run)
+    tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
+    
 
     # resume_ckpt = ckpt_save_dir.joinpath('epoch_2.tar')
     resume_ckpt = None
@@ -139,15 +140,15 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 250, video_limit = None)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_limit = 500)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
     VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'Sigmoid').to(device) #Sigmoid for MNIST, Tanh for KTH and BAIR
     VPTR_Disc = VPTRDisc(img_channels, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d).to(device)
-    init_weights(VPTR_Disc)
-    init_weights(VPTR_Enc)
-    init_weights(VPTR_Dec)
+    init_weights(VPTR_Disc, init_type='xavier')
+    init_weights(VPTR_Enc, init_type='xavier')
+    init_weights(VPTR_Dec, init_type='xavier')
 
     optimizer_G = torch.optim.Adam(params = list(VPTR_Enc.parameters()) + list(VPTR_Dec.parameters()), lr=AE_lr, betas = (0.5, 0.999))
     optimizer_D = torch.optim.Adam(params = VPTR_Disc.parameters(), lr=AE_lr, betas = (0.5, 0.999))
@@ -182,7 +183,7 @@ if __name__ == '__main__':
                 tepoch.set_description(f"Epoch {epoch}")
                 iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
                 EpochAveMeter.iter_update(iter_loss_dict)
-                update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
+                #update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
                 tepoch.set_postfix(loss=iter_loss_dict["AE_total"])
 
                 # Get the first frame

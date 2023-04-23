@@ -167,7 +167,7 @@ def load_ckpt(ckpt_file, map_location = None):
 
     return Modules_state_dict, Optimizers_state_dict, epoch, loss_dict, code
 
-def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_frames_batch, file_dir, renorm_transform = None, desc = None):
+def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_frames_batch, file_dir, renorm_transform, desc = None):
     """
         pred_frames_batch: tensor with shape (N, future_clip_length, C, H, W)
         gt_future_frames_batch: tensor with shape (N, future_clip_length, C, H, W)
@@ -179,7 +179,7 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         imgs = []
         if renorm_transform is not None:
             clip = renorm_transform(clip)
-            clip = torch.clamp(clip, min=0., max=1.0)
+            #clip = torch.clamp(clip, min=0., max=1.0)
         for i in range(clip.shape[0]):
             img = transforms.ToPILImage()(clip[i, ...])
             # Convert image to grayscale
