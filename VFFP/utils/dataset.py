@@ -714,7 +714,7 @@ class VidReNormalize(object):
         except TypeError:
             #try normalize for grey_scale images.
             self.inv_std = 1.0/std
-            self.inv_mean = -mean
+            self.inv_mean = (-mean) / std
             self.renorm = transforms.Compose([transforms.Normalize(mean = 0.,
                                                                 std = self.inv_std),
                                             transforms.Normalize(mean = self.inv_mean,
