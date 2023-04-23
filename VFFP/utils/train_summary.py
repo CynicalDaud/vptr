@@ -177,15 +177,9 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         Path(file_dir).mkdir(parents=True, exist_ok=True) 
     def save_clip(clip, file_name):
         imgs = []
-<<<<<<< Updated upstream
-        if renorm_transform is not None:
-            clip = renorm_transform(clip)
-            #clip = torch.clamp(clip, min=0., max=1.0)
-=======
         # if renorm_transform is not None:
         #     clip = renorm_transform(clip)
             # clip = torch.clamp(clip, min=0., max=1.0)
->>>>>>> Stashed changes
         for i in range(clip.shape[0]):
             img = transforms.ToPILImage()(clip[i, ...])
             # Convert image to grayscale

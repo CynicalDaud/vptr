@@ -119,10 +119,10 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                     #clip = torch.from_numpy(video_memmap[:num_frames]).unsqueeze(1)
                     #clip = F.interpolate(clip, size=(128, 128), mode='nearest')
                     #N += clip.shape[0]
-                    #if mean_clip is None:
-                    #    mean_clip_2 = torch.square(clip)
-                    #    mean_clip = clip
-                    #    mean_clip_2 = mean_clip_2
+                    if mean_clip is None:
+                       mean_clip_2 = torch.square(clip)
+                       mean_clip = clip
+                       mean_clip_2 = mean_clip_2
                     else:
                         clip = clip
                         mean_clip = mean_clip + clip
