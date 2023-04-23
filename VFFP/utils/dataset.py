@@ -79,7 +79,7 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
     train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
     val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
     test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
-
+    
     if ngpus > 1:
         N = batch_size//ngpus
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
@@ -92,9 +92,11 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
 ########################################  Version 2 ######################################## 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_limit = None):
-  renorm_transform = None
   samples = []
-
+  #mean_clip = None
+  #mean_clip_2 = None
+  count = 0
+  N = 0
   with tqdm(iterable=None, desc='Processing Files', position=0) as pbar:
     for root, dirs, files in os.walk("."):
         for file in files:
@@ -102,7 +104,7 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                 video_path = os.path.join(root, file)
                 video_memmap = tifffile.memmap(video_path, mode='r+')
                 video_length = video_memmap.shape[0]
-                video_memmap = None
+                count += 1
                 
                 pbar.update(1)
                 pbar.set_description(f"Processing {video_path}")
@@ -113,17 +115,49 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
 
                 # Use tqdm to create a progress bar that shows the progress of processing each file
                 for i in range(0, video_length-num_frames+1, num_frames):
+                    # get mean and std
+                    #clip = torch.from_numpy(video_memmap[:num_frames]).unsqueeze(1)
+                    #clip = F.interpolate(clip, size=(128, 128), mode='nearest')
+                    #N += clip.shape[0]
+                    #if mean_clip is None:
+                    #    mean_clip_2 = torch.square(clip)
+                    #    mean_clip = clip
+                    #    mean_clip_2 = mean_clip_2
+                    else:
+                        clip = clip
+                        mean_clip = mean_clip + clip
+                        mean_clip_2 = mean_clip_2 + torch.square(clip)
+
                     samples.append((f'{video_path}', i))
+                video_memmap = None
+
+  #mean_clip = mean_clip/N
+  #mean_clip_2 = mean_clip_2/N
+  #mean = torch.mean(mean_clip)
+  #mean_2 = torch.mean(mean_clip_2)
+  #std = torch.sqrt(mean_2 - torch.square(mean))
+  #mean, std = mean.cpu().numpy(), std.cpu().numpy()
+  mean=1.0937392
+  std=0.11474588
+
+  print(f"MEAN: {mean}")
+  print(f"STD: {std}")
+
 
   train_len = int(len(samples)*0.6)
   test_len = int(len(samples)*0.2)
   val_len = len(samples) - train_len - test_len
-        
+
   train_split, test_split, val_split = torch.utils.data.random_split(samples, [train_len, test_len, val_len])
 
-  train_set = MCSDataset(split=train_split, num_frames=num_frames)
-  val_set = MCSDataset(split=test_split, num_frames=num_frames)
-  test_set = MCSDataset(split=val_split, num_frames=num_frames)
+  norm_transform = VidNormalize(mean = mean, std = std)
+  renorm_transform = VidReNormalize(mean = mean, std = std)
+  #transform = transforms.Compose([VidToTensor(), norm_transform, VidResize((128,128))])
+  transform = norm_transform
+
+  train_set = MCSDataset(split=train_split, num_frames=num_frames, transform=transform)
+  val_set = MCSDataset(split=test_split, num_frames=num_frames, transform=transform)
+  test_set = MCSDataset(split=val_split, num_frames=num_frames, transform=transform)
 
   N = batch_size
   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
@@ -145,7 +179,7 @@ class MCSDataset(Dataset):
     """
     CSD/MCS
     """
-    def __init__(self, split, num_frames, past_future_ratio=0.75):
+    def __init__(self, split, num_frames, transform, past_future_ratio=0.75):
         """
         both num_past_frames and num_future_frames are limited to be 10
         Args:
@@ -161,6 +195,7 @@ class MCSDataset(Dataset):
         self.video_files = split
         self.num_frames = num_frames
         self.pf_ratio = past_future_ratio
+        self.transform = transform
     
     def load_video(self, video_path):
         return tifffile.memmap(video_path, mode='r+')
@@ -186,12 +221,16 @@ class MCSDataset(Dataset):
         p_end = start_index+past_range
         past_frames = video[start_index:p_end]
         future_frames = video[p_end:p_end+future_range]
+        video = None
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)
         
         past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
         future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
+
+        past_frames = self.transform(past_frames)
+        future_frames = self.transform(future_frames)
         
         return past_frames, future_frames, video_path
     
@@ -637,10 +676,16 @@ class VidToTensor(object):
         """
         Return: clip --- Tensor with shape (T, C, H, W)
         """
+        tensor_clip = []
         for i in range(len(clip)):
-            clip[i] = transforms.ToTensor()(clip[i])
-        clip = torch.stack(clip, dim = 0)
+            if isinstance(clip[i], np.ndarray):
+                tensor_clip.append(torch.from_numpy(clip[i]))
+            elif isinstance(clip[i], torch.Tensor):
+                tensor_clip.append(clip[i])
+            else:
+                raise TypeError("Invalid type for clip element")
 
+        clip = torch.stack(clip, dim = 0)
         return clip
 
 class VidNormalize(object):
