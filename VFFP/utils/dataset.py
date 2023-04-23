@@ -724,7 +724,7 @@ class VidReNormalize(object):
         """
         Return: clip --- Tensor with shape (T, C, H, W)
         """
-        T, _, _, _ = clip.shape
+        T = clip.shape[0]
         for i in range(T):
             clip[i, ...] = self.renorm(clip[i, ...])
 
