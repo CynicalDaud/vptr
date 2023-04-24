@@ -127,12 +127,12 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 75
-    num_future_frames = 25
+    num_past_frames = 10
+    num_future_frames = 10
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
     epochs = 50
-    N = 1
+    N = 5
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('cuda:0')
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_limit = 500)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_limit = 15000)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -183,23 +183,8 @@ if __name__ == '__main__':
                 tepoch.set_description(f"Epoch {epoch}")
                 iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, optimizer_G, optimizer_D, sample, device, train_flag = True)
                 EpochAveMeter.iter_update(iter_loss_dict)
-                #update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
+                update_summary(summary_writer, iter_loss_dict, idx, train_flag = True)
                 tepoch.set_postfix(loss=iter_loss_dict["AE_total"])
-
-                # Get the first frame
-                #past_frames, future_frames, video_path = sample
-                #past_frames = past_frames.to(device)
-                #future_frames = future_frames.to(device)
-                #x = torch.cat([past_frames, future_frames], dim = 1).cpu()
-
-                #first_frame = x[0,0,0,...].numpy()
-                # Convert the pixel data to grayscale
-                #gray_frame = (first_frame * 255).astype('uint8')
-                # Resize the grayscale frame to a fixed size
-                #gray_frame = Image.fromarray(gray_frame)
-                #gray_frame = np.array(gray_frame)
-                # Add the grayscale frame to the list
-                #frames.append(Image.fromarray(gray_frame, mode='L'))
 
                 sleep(0.1)
 
@@ -216,10 +201,10 @@ if __name__ == '__main__':
                 EpochAveMeter.iter_update(iter_loss_dict)
             loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
             write_summary(summary_writer, loss_dict, train_flag = False)
-            
-            save_ckpt({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
-                    {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
-                    epoch, loss_dict, ckpt_save_dir)
+            if epoch % 10 == 0:
+              save_ckpt({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
+                      {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
+                      epoch, loss_dict, ckpt_save_dir)
             for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
                 show_samples(VPTR_Enc, VPTR_Dec, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'), renorm_transform)
                 break

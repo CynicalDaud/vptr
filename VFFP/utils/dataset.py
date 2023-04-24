@@ -92,11 +92,10 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
 ########################################  Version 2 ######################################## 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_limit = None):
+  # renorm_transform = None
+  renorm_transform = VidReNormalize(mean=1.0937392, std=0.11474588)
   samples = []
-  #mean_clip = None
-  #mean_clip_2 = None
-  count = 0
-  N = 0
+
   with tqdm(iterable=None, desc='Processing Files', position=0) as pbar:
     for root, dirs, files in os.walk("."):
         for file in files:
@@ -104,7 +103,7 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                 video_path = os.path.join(root, file)
                 video_memmap = tifffile.memmap(video_path, mode='r+')
                 video_length = video_memmap.shape[0]
-                count += 1
+                video_memmap = None
                 
                 pbar.update(1)
                 pbar.set_description(f"Processing {video_path}")
@@ -112,52 +111,19 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                 if video_limit:
                     if video_limit < video_length:
                         video_length = video_limit
-
                 # Use tqdm to create a progress bar that shows the progress of processing each file
                 for i in range(0, video_length-num_frames+1, num_frames):
-                    # get mean and std
-                    #clip = torch.from_numpy(video_memmap[:num_frames]).unsqueeze(1)
-                    #clip = F.interpolate(clip, size=(128, 128), mode='nearest')
-                    #N += clip.shape[0]
-                    if mean_clip is None:
-                       mean_clip_2 = torch.square(clip)
-                       mean_clip = clip
-                       mean_clip_2 = mean_clip_2
-                    else:
-                        clip = clip
-                        mean_clip = mean_clip + clip
-                        mean_clip_2 = mean_clip_2 + torch.square(clip)
-
                     samples.append((f'{video_path}', i))
-                video_memmap = None
-
-  #mean_clip = mean_clip/N
-  #mean_clip_2 = mean_clip_2/N
-  #mean = torch.mean(mean_clip)
-  #mean_2 = torch.mean(mean_clip_2)
-  #std = torch.sqrt(mean_2 - torch.square(mean))
-  #mean, std = mean.cpu().numpy(), std.cpu().numpy()
-  mean=1.0937392
-  std=0.11474588
-
-  print(f"MEAN: {mean}")
-  print(f"STD: {std}")
-
 
   train_len = int(len(samples)*0.6)
   test_len = int(len(samples)*0.2)
   val_len = len(samples) - train_len - test_len
-
+        
   train_split, test_split, val_split = torch.utils.data.random_split(samples, [train_len, test_len, val_len])
 
-  norm_transform = VidNormalize(mean = mean, std = std)
-  renorm_transform = VidReNormalize(mean = mean, std = std)
-  #transform = transforms.Compose([VidToTensor(), norm_transform, VidResize((128,128))])
-  transform = norm_transform
-
-  train_set = MCSDataset(split=train_split, num_frames=num_frames, transform=transform)
-  val_set = MCSDataset(split=test_split, num_frames=num_frames, transform=transform)
-  test_set = MCSDataset(split=val_split, num_frames=num_frames, transform=transform)
+  train_set = MCSDataset(split=train_split, num_frames=num_frames, past_future_ratio=0.5)
+  val_set = MCSDataset(split=test_split, num_frames=num_frames, past_future_ratio=0.5)
+  test_set = MCSDataset(split=val_split, num_frames=num_frames, past_future_ratio=0.5)
 
   N = batch_size
   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
@@ -179,7 +145,7 @@ class MCSDataset(Dataset):
     """
     CSD/MCS
     """
-    def __init__(self, split, num_frames, transform, past_future_ratio=0.75):
+    def __init__(self, split, num_frames, past_future_ratio=0.75):
         """
         both num_past_frames and num_future_frames are limited to be 10
         Args:
@@ -195,7 +161,8 @@ class MCSDataset(Dataset):
         self.video_files = split
         self.num_frames = num_frames
         self.pf_ratio = past_future_ratio
-        self.transform = transform
+        self.mean = 1.0937392
+        self.std = 0.11474588
     
     def load_video(self, video_path):
         return tifffile.memmap(video_path, mode='r+')
@@ -214,14 +181,13 @@ class MCSDataset(Dataset):
         
         video_path, start_index = self.video_files[index]
         video = self.load_video(video_path)
-
+        
         past_range = int(self.num_frames*self.pf_ratio)
         future_range = self.num_frames-past_range
         
         p_end = start_index+past_range
         past_frames = video[start_index:p_end]
         future_frames = video[p_end:p_end+future_range]
-        video = None
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)
@@ -229,8 +195,8 @@ class MCSDataset(Dataset):
         past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
         future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
 
-        past_frames = self.transform(past_frames)
-        future_frames = self.transform(future_frames)
+        past_frames = transforms.Normalize(self.mean, self.std)(past_frames)
+        future_frames = transforms.Normalize(self.mean, self.std)(future_frames)
         
         return past_frames, future_frames, video_path
     
@@ -704,31 +670,27 @@ class VidNormalize(object):
 
 class VidReNormalize(object):
     def __init__(self, mean, std):
-        try:
-            self.inv_std = [1.0/s for s in std]
-            self.inv_mean = [-m for m in mean]
-            self.renorm = transforms.Compose([transforms.Normalize(mean = [0., 0., 0.],
-                                                                std = self.inv_std),
-                                            transforms.Normalize(mean = self.inv_mean,
-                                                                std = [1., 1., 1.])])
-        except TypeError:
-            #try normalize for grey_scale images.
-            self.inv_std = 1.0/std
-            self.inv_mean = (-mean) / std
-            self.renorm = transforms.Compose([transforms.Normalize(mean = 0.,
-                                                                std = self.inv_std),
-                                            transforms.Normalize(mean = self.inv_mean,
-                                                                std = 1.)])
-
+      # self.inv_std = 1.0/std
+      # self.inv_mean = -mean
+      # self.renorm = transforms.Compose([transforms.Normalize(mean = 0.,
+      #                                                     std = self.inv_std),
+      #                                 transforms.Normalize(mean = self.inv_mean,
+      #                                                     std = 1.)])
+      self.inv_std = 1.0/std
+      self.inv_mean = (-mean) / std
+      self.renorm = transforms.Normalize(mean = self.inv_mean,
+                                                          std = self.inv_std)
+      
     def __call__(self, clip: Tensor):
-        """
-        Return: clip --- Tensor with shape (T, C, H, W)
-        """
-        T = clip.shape[0]
-        for i in range(T):
-            clip[i, ...] = self.renorm(clip[i, ...])
-
-        return clip
+            """
+            Return: clip --- Tensor with shape (T, C, H, W)
+            """
+            # T, _, _, _ = clip.shape
+            T = clip.shape[0]
+            for i in range(T):
+                clip[i, ...] = self.renorm(clip[i, ...])
+                
+            return clip
 
 class VidPad(object):
     """
