@@ -177,9 +177,9 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         Path(file_dir).mkdir(parents=True, exist_ok=True) 
     def save_clip(clip, file_name):
         imgs = []
-        # if renorm_transform is not None:
-        #     clip = renorm_transform(clip)
-            # clip = torch.clamp(clip, min=0., max=1.0)
+        if renorm_transform is not None:
+            clip = renorm_transform(clip)
+            clip = torch.clamp(clip, min=0., max=1.0)
         for i in range(clip.shape[0]):
             img = transforms.ToPILImage()(clip[i, ...])
             # Convert image to grayscale
@@ -191,17 +191,16 @@ def visualize_batch_clips(gt_past_frames_batch, gt_future_frames_batch, pred_fra
         
     def append_frames(batch, max_clip_length):
         d = max_clip_length - batch.shape[1]
-        batch = torch.cat([batch, batch[:, -1, :, :, :].repeat(1, d, 1, 1, 1)], dim = 1)
+        batch = torch.cat([batch, batch[:, 2:-1, :, :, :].repeat(1, d, 1, 1, 1)], dim = 1)
         return batch
     
-    # max_length = max(gt_future_frames_batch.shape[1], gt_past_frames_batch.shape[1])
-    # if gt_past_frames_batch.shape[1] < max_length:
-    #     gt_past_frames_batch = append_frames(gt_past_frames_batch, max_length)
-    # if gt_future_frames_batch.shape[1] < max_length:
-    #     gt_future_frames_batch = append_frames(gt_future_frames_batch, max_length)
-    #     pred_frames_batch = append_frames(pred_frames_batch, max_length)
+    max_length = max(gt_future_frames_batch.shape[1], gt_past_frames_batch.shape[1])
+    if gt_past_frames_batch.shape[1] < max_length:
+        gt_past_frames_batch = append_frames(gt_past_frames_batch, max_length)
+    if gt_future_frames_batch.shape[1] < max_length:
+        gt_future_frames_batch = append_frames(gt_future_frames_batch, max_length)
+        pred_frames_batch = append_frames(pred_frames_batch, max_length)
         
-    gt_past_frames_batch = renorm_transform(gt_past_frames_batch)
     batch = torch.cat([gt_past_frames_batch, gt_future_frames_batch, pred_frames_batch], dim = -1) #shape (N, clip_length, C, H, 3W)
     batch = batch.cpu()
     N = batch.shape[0]

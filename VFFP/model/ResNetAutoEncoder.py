@@ -87,12 +87,13 @@ class ResnetDecoder(nn.Module):
                       norm_layer(int(ngf * mult / 2)),
                       nn.ReLU(True)]
         model += [nn.ReflectionPad2d(3)]
-        # KERNEL SIZE USED TO BE 7??
         model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
         if out_layer == 'Tanh':
             model += [nn.Tanh()]
         elif out_layer == 'Sigmoid':
             model += [nn.Sigmoid()]
+        elif out_layer == 'RELU':
+            model += [nn.ReLU()]
         else:
             raise ValueError("Unsupported output layer")
 

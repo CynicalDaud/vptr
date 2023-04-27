@@ -65,7 +65,6 @@ class VidHRFormerBlockEnc(nn.Module):
         Return: (N, T, H, W, C)
         """
         N, T, H, W, C = x.shape
-        print(x.shape)
         x = x + self.drop_path(self.SLMHSA(self.norm1(x), local_window_pos_embed)) #spatial local window self-attention, and skip connection
         
         #Conv feed-forward, different local window information interacts
@@ -170,9 +169,11 @@ class VidHRFormerBlockDecNAR(nn.Module):
         local_window_pos_embed: (window_size, window_size, C)
         query_temporal_pos_embed: (T2, C)
         TS_local_pos_embed: (T1+T2, window_size, window_size, C)
-
         Return: (N, T2, H, W, C)
         """
+        print(f"Target Shape : {tgt.shape}")
+        print(f"Memory shape: {memory.shape}")
+
         N, T2, H, W, C = tgt.shape
         tgt2 = self.norm1(tgt)
         tgt2_query_pos = tgt2 + query_pos
@@ -200,6 +201,7 @@ class VidHRFormerBlockDecNAR(nn.Module):
         else:
             tgt = self.norm5(tgt2)
             T1 = memory.shape[1]
+            print(f"{T1}, {N*H*W}, {C}")
             memory = memory.permute(1, 0, 2, 3, 4).reshape(T1, N*H*W, C)
             query_pos = query_pos.permute(1, 0, 2, 3, 4).reshape(T2, N*H*W, C)
             tgt2 = tgt2 + self.drop_path1(self.EncDecAttn(query = tgt+query_pos+future_query_temporal_pos_embed[:, None, :], 

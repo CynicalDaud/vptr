@@ -195,4 +195,3 @@ class VPTRFormerFAR(nn.Module):
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
-

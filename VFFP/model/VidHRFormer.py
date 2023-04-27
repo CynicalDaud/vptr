@@ -44,6 +44,7 @@ class VidHRFormerNAR(nn.Module):
         memory = self.encoder(src, local_window_pos_embed, temporal_pos_embed[0:Tp, ...])
         #pred_query = self.FBP(memory, src) #(N, Tf, H, W, embed_dim)
         query_pos = query_pos.unsqueeze(0).repeat(N, 1, 1, 1, 1)# + pred_query
+        print(query_pos.shape)
 
         init_tgt = torch.zeros_like(query_pos, requires_grad = False) #init as zeros
         out = self.decoder(init_tgt, query_pos, memory, local_window_pos_embed, temporal_pos_embed[Tp:, ...], TS_local_pos_embed, temporal_pos_embed[0:Tp, ...]) #(N, Tf, H, W, embed_dim)
