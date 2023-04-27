@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 import torch.nn.functional as F
 
 from pathlib import Path
@@ -50,7 +51,7 @@ def cal_lossT(VPTR_Disc, fake_imgs, real_imgs, fake_feats, real_feats, lam_pc, l
     return loss_T, T_GDL_loss, T_MSE_loss, T_PC_loss, loss_T_gan
 
 def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = True):
-    past_frames, future_frames = sample
+    past_frames, future_frames, _ = sample
     past_frames = past_frames.to(device)
     future_frames = future_frames.to(device)
     
@@ -63,6 +64,7 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
         VPTR_Transformer.zero_grad(set_to_none=True)
         VPTR_Dec.zero_grad(set_to_none=True)
         
+        print(past_gt_feats.shape)
         pred_future_feats = VPTR_Transformer(past_gt_feats)
         pred_frames = VPTR_Dec(pred_future_feats)
         
@@ -112,7 +114,7 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
 def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
     VPTR_Transformer = VPTR_Transformer.eval()
     with torch.no_grad():
-        past_frames, future_frames = sample
+        past_frames, future_frames, _ = sample
         past_frames = past_frames.to(device)
         future_frames = future_frames.to(device)
 
@@ -145,12 +147,13 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
 if __name__ == '__main__':
     set_seed(2021)
     working_dir = '/gpfs/home/shared/Neurotic/'
-    ckpt_save_dir = Path(working_dir+'trained_ae')
-    tensorboard_save_dir = Path(working_dir+'tensorboard')
+    ckpt_save_dir = Path(working_dir+'trained_transformer_200-1000-no_scaling-relu')
+    tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
     #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
     resume_ckpt = None
     #Change epoch tar file
-    resume_AE_ckpt = Path(working_dir+'trained_ae').joinpath('epoch_3.tar') #The trained AutoEncoder checkpoint file
+    resume_AE_ckpt = Path(working_dir+'trained_ae_200-1000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
+    #resume_AE_ckpt = Path(working_dir+'trained_ae_200-1000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
     if not Path(ckpt_save_dir).exists():
@@ -164,36 +167,36 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 10
-    num_future_frames = 10
-    encH, encW, encC = 8, 8, 528
+    num_past_frames = 100
+    num_future_frames = 100
+    encH, encW, encC = 16, 16, 528
     img_channels = 1
-    epochs = 10
+    epochs = 50
     N = 1
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
     max_grad_norm = 1.0 
     TSLMA_flag = False
     rpe = True
-    padding_type = 'reflect'
+    padding_type = 'zero'
 
     lam_gan = None #0.001
     lam_pc = 0.1
     device = torch.device('cuda:0')
 
-    show_example_epochs = 10
+    show_example_epochs = 1
     save_ckpt_epochs = 2
 
     #####################Init Dataset ###########################
     data_set_name = 'CSD'
     dataset_dir = working_dir+'MCS'
-    test_past_frames = 75
-    test_future_frames = 25
-    train_loader, val_loader, test_loader, renorm_transform = get_dataloader(data_set_name, N, dataset_dir, test_past_frames, test_future_frames)
+    test_past_frames = 100
+    test_future_frames = 100
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 200, video_limit = 10000)
 
     #####################Init model###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3, padding_type = padding_type).to(device)
-    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'Tanh', padding_type = padding_type).to(device)
+    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'RELU', padding_type = padding_type).to(device)
     VPTR_Enc = VPTR_Enc.eval()
     VPTR_Dec = VPTR_Dec.eval()
 
@@ -212,7 +215,7 @@ if __name__ == '__main__':
     optimizer_T = torch.optim.AdamW(params = VPTR_Transformer.parameters(), lr = Transformer_lr)
 
     Transformer_parameters = sum(p.numel() for p in VPTR_Transformer.parameters() if p.requires_grad)
-    print("NAR Transformer num_parameters: {Transformer_parameters}")
+    print(f"NAR Transformer num_parameters: {Transformer_parameters}")
 
     #####################Init loss function###########################
     loss_name_list = ['T_MSE', 'T_GDL', 'T_gan', 'T_total', 'T_bpc', 'Dtotal', 'Dfake', 'Dreal']
@@ -235,17 +238,14 @@ if __name__ == '__main__':
     #####################Train ################################
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
         epoch_st = datetime.now()
-        print("EPOCH %d\n" % epoch)
-
         #Train
         EpochAveMeter = AverageMeters(loss_name_list)
-
-
-
         with tqdm(enumerate(train_loader, 0), unit=" batch", total=len(train_loader)) as tepoch:
             for idx, sample in tepoch:
+                tepoch.set_description(f"Epoch {epoch}")
                 iter_loss_dict = single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, optimizer_D, sample, device, train_flag = True)
                 EpochAveMeter.iter_update(iter_loss_dict)
+                tepoch.set_postfix(loss=iter_loss_dict["T_total"])
             loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = True)
             write_summary(summary_writer, loss_dict, train_flag = True)
 

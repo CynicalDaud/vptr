@@ -40,16 +40,19 @@ if __name__ == '__main__':
     num_future_frames = 25
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
-    epochs = 50
+    epochs = 1
     N = 1
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('cpu')
 
+    maxmax = 0
+    minmin = 0
+
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_limit = 2000)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 200, video_limit = 10000)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -83,38 +86,48 @@ if __name__ == '__main__':
     with tqdm(enumerate(train_loader, 0), unit=" batch", total=len(train_loader)) as tepoch:
         frames = []
         subtitles = []
+
         for idx, sample in tepoch:
             pf, ff, d = sample
-            print("Maximum value:", torch.max(ff))
-            print("Minimum value:", torch.min(ff))
-            print("Mean value:", torch.mean(ff))
-            print()
+            x = torch.cat([pf, ff], dim = 1)
+            pf, ff = None, None
+            #x = renorm_transform(x[0])
+            first_frame = np.array(x[-1,0,:])
 
-            ff = renorm_transform(ff[0])
-            first_frame = np.array(ff[-1,0,:])
+            maxim = torch.max(x)
+            mi = torch.min(x)
+
+            if maxim > maxmax:
+                maxmax = maxim
+            if mi < minmin:
+                minmin = mi
+
+            print(f"CLIP Max: {maxim}, Min:{mi}")
+
             
-            if np.all(first_frame == 0) or np.all(first_frame == 1) or np.all(np.isnan(first_frame)):
-                print("Array is blank")
-                print(d)
+            #if np.all(first_frame == 0) or np.all(first_frame == 1) or np.all(np.isnan(first_frame)):
+            #    print("Array is blank")
+            #    print(d)
 
             # Convert the pixel data to grayscale
-            gray_frame = (first_frame * 255).astype('uint8')
+            #gray_frame = (first_frame * 255).astype('uint8')
             # Resize the image to 100x100 pixels
-            pil_image = Image.fromarray(gray_frame)
-            resized_image = pil_image.resize((100, 100))
+            #pil_image = Image.fromarray(gray_frame)
+            #resized_image = pil_image.resize((100, 100))
 
             # Convert the resized image back to a numpy array
-            resized_frame = np.array(resized_image)
+            #resized_frame = np.array(resized_image)
+            #frames.append(resized_frame)
 
-            frames.append(resized_frame)
-            subtitles.append(str(d))
+            #subtitles.append(str(d))
+
 
         # Create a grid of images with titles
         num_cols = 20
         num_rows = int(np.ceil(len(frames) / num_cols))
         img_size = 100
         grid_img = Image.new(mode='L', size=(num_cols*img_size, num_rows*img_size), color='white')
-
+        
         for i, frame in enumerate(frames):
             row = i // num_cols
             col = i % num_cols

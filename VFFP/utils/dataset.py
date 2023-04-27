@@ -90,18 +90,54 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
+def contains_static_or_noise(tiff_file):
+    """Detects whether or not the tiff file contains frames containing static or noise.
+
+    Args:
+        tiff_file: The path to the tiff file.
+
+    Returns:
+        True if the tiff file contains frames containing static or noise, False otherwise.
+    """
+
+    # Open the tiff file.
+    with tifffile.TiffFile(tiff_file) as tif:
+
+        # Get the number of frames in the tiff file.
+        num_frames = tif.pages
+
+        # Loop through the frames in the tiff file.
+        for frame_idx in range(num_frames):
+
+            # Get the image for the current frame.
+            image = tif.pages[frame_idx].asarray()
+
+            # Check if the image contains static or noise.
+            if np.all(image == image[0]) or np.std(image) == 0:
+                return True
+
+    # No frames in the tiff file contain static or noise.
+    return False
+
 ########################################  Version 2 ######################################## 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_limit = None):
-  # renorm_transform = None
   renorm_transform = VidReNormalize(mean=1.0937392, std=0.11474588)
+  renorm_transform = None
+  N = batch_size
   samples = []
+  count = 0
 
   with tqdm(iterable=None, desc='Processing Files', position=0) as pbar:
     for root, dirs, files in os.walk("."):
         for file in files:
-            if file.endswith(".tif") and "baseline_norm" in file.lower():
+            if file.endswith(".tif") and "baseline_norm" in file.lower() and count < 5:
                 video_path = os.path.join(root, file)
+                
+                # if contains_static_or_noise(video_path):
+                #     print(video_path)
+                
                 video_memmap = tifffile.memmap(video_path, mode='r+')
+                
                 video_length = video_memmap.shape[0]
                 video_memmap = None
                 
@@ -111,9 +147,11 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                 if video_limit:
                     if video_limit < video_length:
                         video_length = video_limit
+                count += 1
                 # Use tqdm to create a progress bar that shows the progress of processing each file
                 for i in range(0, video_length-num_frames+1, num_frames):
                     samples.append((f'{video_path}', i))
+                    
 
   train_len = int(len(samples)*0.6)
   test_len = int(len(samples)*0.2)
@@ -123,9 +161,8 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
 
   train_set = MCSDataset(split=train_split, num_frames=num_frames, past_future_ratio=0.5)
   val_set = MCSDataset(split=test_split, num_frames=num_frames, past_future_ratio=0.5)
-  test_set = MCSDataset(split=val_split, num_frames=num_frames, past_future_ratio=0.5)
+  test_set = MCSDataset(split=test_split, num_frames=num_frames, past_future_ratio=0.5)
 
-  N = batch_size
   train_loader = DataLoader(train_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
   val_loader = DataLoader(val_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = True)
   test_loader = DataLoader(test_set, batch_size=N, shuffle=True, num_workers=num_workers, drop_last = False)
@@ -163,6 +200,9 @@ class MCSDataset(Dataset):
         self.pf_ratio = past_future_ratio
         self.mean = 1.0937392
         self.std = 0.11474588
+
+        #self.mean = 1.4019618034362793
+        #self.std = 12.810931205749512
     
     def load_video(self, video_path):
         return tifffile.memmap(video_path, mode='r+')
@@ -191,12 +231,23 @@ class MCSDataset(Dataset):
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)
-        
+
         past_frames = F.interpolate(past_frames, size=(128, 128), mode='nearest')
         future_frames = F.interpolate(future_frames, size=(128, 128), mode='nearest')
 
-        past_frames = transforms.Normalize(self.mean, self.std)(past_frames)
-        future_frames = transforms.Normalize(self.mean, self.std)(future_frames)
+        #x = torch.cat([past_frames, future_frames], dim = 1)
+        # Calculate the min and max values of the sample tensor.
+        #min_val = x.min()
+        #max_val = x.max()
+
+        #past_frames = transforms.Normalize(self.mean, self.std)(past_frames)
+        #future_frames = transforms.Normalize(self.mean, self.std)(future_frames)
+
+        # Normalize the past_frames tensor.
+        #past_frames = (past_frames - min_val) / (max_val - min_val)
+
+        # Normalize the future_frames tensor.
+        #future_frames = (future_frames - min_val) / (max_val - min_val)
         
         return past_frames, future_frames, video_path
     

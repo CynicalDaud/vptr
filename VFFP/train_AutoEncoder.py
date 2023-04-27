@@ -116,7 +116,7 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
         visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 if __name__ == '__main__':
-    run = "20frame-all"
+    run = "100-500-no_scaling-leaky_relu-small"
     working_dir = '/gpfs/home/shared/Neurotic/'
     ckpt_save_dir = Path(working_dir+'trained_ae_'+run)
     tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
@@ -127,12 +127,12 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 10
-    num_future_frames = 10
+    num_past_frames = 50
+    num_future_frames = 50
     encH, encW, encC = 8, 8, 528
     img_channels = 1 #3 channels for BAIR datset
-    epochs = 50
-    N = 5
+    epochs = S50
+    N = 2
     AE_lr = 2e-4
     lam_gan = 0.01
     device = torch.device('cuda:0')
@@ -140,11 +140,11 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 20, video_limit = 15000)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_limit = 500)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
-    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'Sigmoid').to(device) #Sigmoid for MNIST, Tanh for KTH and BAIR
+    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'RELU').to(device) #Sigmoid for MNIST, Tanh for KTH and BAIR
     VPTR_Disc = VPTRDisc(img_channels, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d).to(device)
     init_weights(VPTR_Disc, init_type='xavier')
     init_weights(VPTR_Enc, init_type='xavier')

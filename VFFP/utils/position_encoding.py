@@ -36,7 +36,8 @@ class PositionEmbeddding1D(nn.Module):
         """
         pos_embed = torch.ones(N, L, dtype = torch.float32).cumsum(axis = 1)
         dim_t = torch.arange(E, dtype = torch.float32)
-        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / E)  
+        #dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / E)  
+        dim_t = self.temperature ** (2 * (dim_t // 2) / E)        
         if self.normalize:
             eps = 1e-6
             pos_embed = pos_embed / (L + eps) * self.scale
@@ -80,9 +81,12 @@ class PositionEmbeddding2D(nn.Module):
             eps = 1e-6
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
-
-        dim_t = torch.arange(torch.div(E, 2, rounding_mode='floor'), dtype=torch.float32, device=self.device)
-        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(E, 2, rounding_mode='floor')))
+ 
+        #dim_t = torch.arange(torch.div(E, 2, rounding_mode='floor'), dtype=torch.float32, device=self.device)
+        #dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(E, 2, rounding_mode='floor')))
+        
+        dim_t = torch.arange((E//2), dtype=torch.float32, device=self.device)
+        dim_t = self.temperature ** (2 * (dim_t//2) / (E//2))
 
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
@@ -124,7 +128,8 @@ class PositionEmbeddding3D(nn.Module):
             pos_embed: positional encoding with shape (N, E, T, H, W)
         """
         NT, C, H, W= tensorlist.tensors.shape
-        N = torch.div(NT, self.T, rounding_mode='floor')
+        #N = torch.div(NT, self.T, rounding_mode='floor')
+        N = (NT // self.T)
         mask = tensorlist.mask
         assert self.E % 3 == 0, "Embedding size should be divisible by 3"
 
@@ -144,8 +149,11 @@ class PositionEmbeddding3D(nn.Module):
             y_embed = y_embed / (y_embed[:, :, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, :, -1:] + eps) * self.scale
         
-        dim_t = torch.arange(torch.div(self.E, 3, rounding_mode='floor'), dtype=torch.float32, device=self.device) 
-        dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(self.E, 3, rounding_mode='floor')))
+        #dim_t = torch.arange(torch.div(self.E, 3, rounding_mode='floor'), dtype=torch.float32, device=self.device) 
+        #dim_t = self.temperature ** (2 * (torch.div(dim_t, 2, rounding_mode='floor')) / (torch.div(self.E, 3, rounding_mode='floor')))
+        
+        dim_t = torch.arange((self.E//3), dtype=torch.float32, device=self.device) 
+        dim_t = self.temperature ** (2 * (dim_t//2) / (self.E//3))
 
         pos_t = t_embed[:, :, :, :, None] / dim_t
         pos_x = x_embed[:, :, :, :, None] / dim_t
