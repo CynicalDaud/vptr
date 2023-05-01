@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 import torch.nn.functional as F
 
 import torch.distributed as dist
@@ -18,7 +19,7 @@ from datetime import datetime
 from model import VPTREnc, VPTRDec, VPTRDisc, init_weights, VPTRFormerNAR, VPTRFormerFAR
 from model import GDL, MSELoss, L1Loss, GANLoss, BiPatchNCE
 from utils import KTHDataset, BAIRDataset, MovingMNISTDataset
-from utils import get_dataloader
+from utils import get_dataloader, get_data
 from utils import visualize_batch_clips, save_ckpt, load_ckpt, set_seed, AverageMeters, init_loss_dict, write_summary, resume_training
 from utils import set_seed, gather_AverageMeters
 
@@ -223,7 +224,8 @@ def main_worker(rank, args, world_size, img_channels, encC, encH, encW, dropout,
                                                                       TSLMA_flag, rank, batch_size, world_size, Transformer_lr, resume_AE_ckpt, 
                                                                       resume_Transformer_ckpt, num_encoder_layers, num_decoder_layers,
                                                                       num_past_frames, num_future_frames, init_Disc, train_Disc)
-    train_loader, val_loader, _, renorm_transform = get_dataloader(data_set_name, batch_size, data_set_dir, ngpus = world_size, num_workers = num_workers)
+    # train_loader, val_loader, _, renorm_transform = get_dataloader(data_set_name, batch_size, data_set_dir, ngpus = world_size, num_workers = num_workers)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_limit = 10000, ngpus = world_size, num_workers = num_workers)
     
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
         epoch_st = datetime.now()
@@ -278,20 +280,22 @@ if __name__ == '__main__':
     set_seed(3407)
     args = parser.parse_args()
 
-    ckpt_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_TLMA_aug_BPNCE01_MSEGDL_NAR_mp_ckpt')
-    tensorboard_save_dir = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_TLMA_aug_BPNCE01_MSEGDL_NAR_mp_tensorboard')
-    resume_AE_ckpt = Path('/home/travail/xiyex/VPTR_ckpts/MNIST_ResNetAE_MSEGDLgan001_ckpt').joinpath('epoch_93.tar')
-    #resume_Transformer_ckpt = ckpt_save_dir.joinpath('epoch_90.tar')
-    resume_Transformer_ckpt = None
+    working_dir = '/gpfs/home/shared/Neurotic/'
+    ckpt_save_dir = Path(working_dir+'trained_transformer_200-1000-no_scaling-relu')
+    tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
+    
+    resume_ckpt = None
+    #Change epoch tar file
+    resume_AE_ckpt = Path(working_dir+'trained_ae_100-10000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
 
-    data_set_name = 'MNIST'
-    out_layer = 'Sigmoid'
-    data_set_dir = '/home/travail/xiyex/MovingMNIST'
+    data_set_name = 'CSD'
+    dataset_dir = working_dir+'MCS'
+    out_layer = 'RELU'
     dev_set_size = 50
 
-    num_past_frames = 10
-    num_future_frames = 10
-    encH, encW, encC = 8, 8, 528
+    num_past_frames = 100
+    num_future_frames = 100
+    encH, encW, encC = 16, 16, 528
     img_channels = 1
     epochs = 150
     batch_size = 2
@@ -319,8 +323,8 @@ if __name__ == '__main__':
     mp.spawn(main_worker,
              args=(args, world_size, img_channels, encC, encH, encW, dropout, out_layer, TSLMA_flag,
                 rpe, Transformer_lr, max_grad_norm, lam_pc, lam_gan, resume_AE_ckpt,
-                data_set_name, batch_size, data_set_dir, dev_set_size, epochs, ckpt_save_dir, tensorboard_save_dir,
-                resume_Transformer_ckpt, num_encoder_layers, num_decoder_layers, num_past_frames, 
+                data_set_name, batch_size, dataset_dir, dev_set_size, epochs, ckpt_save_dir, tensorboard_save_dir,
+                resume_ckpt, num_encoder_layers, num_decoder_layers, num_past_frames, 
                 num_future_frames, init_Disc, train_Disc,
                 num_workers, show_example_epochs, save_ckpt_epochs),
              nprocs=world_size)

@@ -116,20 +116,20 @@ def show_samples(VPTR_Enc, VPTR_Dec, sample, save_dir, renorm_transform):
         visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 if __name__ == '__main__':
-    run = "100-500-no_scaling-leaky_relu-small"
+    run = "100-10000-no_scaling-relu"
     working_dir = '/gpfs/home/shared/Neurotic/'
     ckpt_save_dir = Path(working_dir+'trained_ae_'+run)
     tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
     
 
-    # resume_ckpt = ckpt_save_dir.joinpath('epoch_2.tar')
-    resume_ckpt = None
-    start_epoch = 0
+    resume_ckpt = ckpt_save_dir.joinpath('epoch_10.tar')
+    # resume_ckpt = None
+    start_epoch = 10
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
     num_past_frames = 50
     num_future_frames = 50
-    encH, encW, encC = 8, 8, 528
+    encH, encW, encC = 16, 16, 528
     img_channels = 1 #3 channels for BAIR datset
     epochs = 50
     N = 2
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD' #see utils.dataset
     dataset_dir = working_dir+'MCS'
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_limit = 500)
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_limit = 10000)
 
     #####################Init Models and Optimizer ###########################
     VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
@@ -201,7 +201,7 @@ if __name__ == '__main__':
                 EpochAveMeter.iter_update(iter_loss_dict)
             loss_dict = EpochAveMeter.epoch_update(loss_dict, epoch, train_flag = False)
             write_summary(summary_writer, loss_dict, train_flag = False)
-            if epoch % 10 == 0:
+            if epoch % 5 == 0:
               save_ckpt({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec, 'VPTR_Disc': VPTR_Disc}, 
                       {'optimizer_G': optimizer_G, 'optimizer_D': optimizer_D}, 
                       epoch, loss_dict, ckpt_save_dir)

@@ -90,35 +90,6 @@ def get_dataloader(data_set_name, batch_size, data_set_dir, test_past_frames = 1
 
     return train_loader, val_loader, test_loader, renorm_transform
 
-def contains_static_or_noise(tiff_file):
-    """Detects whether or not the tiff file contains frames containing static or noise.
-
-    Args:
-        tiff_file: The path to the tiff file.
-
-    Returns:
-        True if the tiff file contains frames containing static or noise, False otherwise.
-    """
-
-    # Open the tiff file.
-    with tifffile.TiffFile(tiff_file) as tif:
-
-        # Get the number of frames in the tiff file.
-        num_frames = tif.pages
-
-        # Loop through the frames in the tiff file.
-        for frame_idx in range(num_frames):
-
-            # Get the image for the current frame.
-            image = tif.pages[frame_idx].asarray()
-
-            # Check if the image contains static or noise.
-            if np.all(image == image[0]) or np.std(image) == 0:
-                return True
-
-    # No frames in the tiff file contain static or noise.
-    return False
-
 ########################################  Version 2 ######################################## 
 def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 20, video_limit = None):
   renorm_transform = VidReNormalize(mean=1.0937392, std=0.11474588)
@@ -137,7 +108,6 @@ def get_data(batch_size, data_set_dir, ngpus = 1, num_workers = 1, num_frames = 
                 #     print(video_path)
                 
                 video_memmap = tifffile.memmap(video_path, mode='r+')
-                
                 video_length = video_memmap.shape[0]
                 video_memmap = None
                 
@@ -228,6 +198,7 @@ class MCSDataset(Dataset):
         p_end = start_index+past_range
         past_frames = video[start_index:p_end]
         future_frames = video[p_end:p_end+future_range]
+        video = None
         
         past_frames = torch.from_numpy(past_frames).unsqueeze(1)
         future_frames = torch.from_numpy(future_frames).unsqueeze(1)

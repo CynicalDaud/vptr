@@ -64,7 +64,6 @@ def single_iter(VPTR_Enc, VPTR_Dec, VPTR_Disc, VPTR_Transformer, optimizer_T, op
         VPTR_Transformer.zero_grad(set_to_none=True)
         VPTR_Dec.zero_grad(set_to_none=True)
         
-        print(past_gt_feats.shape)
         pred_future_feats = VPTR_Transformer(past_gt_feats)
         pred_frames = VPTR_Dec(pred_future_feats)
         
@@ -140,19 +139,20 @@ def NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, save_dir):
 
         ## TO FIX:
         
-        #visualize_batch_clips(past_frames[0:idx, :, ...], future_frames[0:idx, :, ...], pred_future_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'pred')
+        visualize_batch_clips(past_frames[0:idx, :, ...], future_frames[0:idx, :, ...], pred_future_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'pred')
         #visualize_batch_clips(past_frames[0:idx, :, ...], rec_future_frames[0:idx, :, ...], rec_past_frames[0:idx, :, ...], save_dir, renorm_transform, desc = 'ae')
 
 
 if __name__ == '__main__':
     set_seed(2021)
     working_dir = '/gpfs/home/shared/Neurotic/'
-    ckpt_save_dir = Path(working_dir+'trained_transformer_200-1000-no_scaling-relu')
+    ckpt_save_dir = Path(working_dir+'trained_transformer_100-500-no_scaling-relu-small')
     tensorboard_save_dir = Path(os.path.join(ckpt_save_dir, "tensorboard"))
     #resume_ckpt = Path('./MovingMNIST_NAR.tar') #The trained Transformer checkpoint file
+    #resume_ckpt = "/home/shared/Neurotic/trained_transformer_100-500-no_scaling-relu-small/epoch_56.tar"
     resume_ckpt = None
     #Change epoch tar file
-    resume_AE_ckpt = Path(working_dir+'trained_ae_200-1000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
+    resume_AE_ckpt = Path(working_dir+'trained_ae_100-10000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
     #resume_AE_ckpt = Path(working_dir+'trained_ae_200-1000-no_scaling-relu').joinpath('epoch_10.tar') #The trained AutoEncoder checkpoint file
 
     #############Set the logger#########
@@ -167,11 +167,11 @@ if __name__ == '__main__':
     start_epoch = 0
 
     summary_writer = SummaryWriter(tensorboard_save_dir.absolute().as_posix())
-    num_past_frames = 100
-    num_future_frames = 100
+    num_past_frames = 50
+    num_future_frames = 50
     encH, encW, encC = 16, 16, 528
     img_channels = 1
-    epochs = 50
+    epochs =100
     N = 1
     #AE_lr = 2e-4
     Transformer_lr = 1e-4
@@ -190,13 +190,13 @@ if __name__ == '__main__':
     #####################Init Dataset ###########################
     data_set_name = 'CSD'
     dataset_dir = working_dir+'MCS'
-    test_past_frames = 100
-    test_future_frames = 100
-    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 200, video_limit = 10000)
+    test_past_frames = 50
+    test_future_frames = 50
+    train_loader, val_loader, test_loader, renorm_transform = get_data(N, dataset_dir, num_frames = 100, video_limit = 500)
 
     #####################Init model###########################
-    VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3, padding_type = padding_type).to(device)
-    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'RELU', padding_type = padding_type).to(device)
+    VPTR_Enc = VPTREnc(img_channels, feat_dim = encC, n_downsampling = 3).to(device)
+    VPTR_Dec = VPTRDec(img_channels, feat_dim = encC, n_downsampling = 3, out_layer = 'RELU').to(device)
     VPTR_Enc = VPTR_Enc.eval()
     VPTR_Dec = VPTR_Dec.eval()
 
@@ -208,8 +208,11 @@ if __name__ == '__main__':
     init_weights(VPTR_Dec)
 
     VPTR_Transformer = VPTRFormerNAR(num_past_frames, num_future_frames, encH=encH, encW = encW, d_model=encC, 
-                                    nhead=8, num_encoder_layers=4, num_decoder_layers=8, dropout=0.1, 
+                                    nhead=8, num_encoder_layers=4, num_decoder_layers=4, dropout=0.1, 
                                     window_size=4, Spatial_FFN_hidden_ratio=4, TSLMA_flag = TSLMA_flag, rpe = rpe).to(device)
+    #VPTR_Transformer = VPTRFormerNAR(num_past_frames, num_future_frames, encH=encH, encW = encW, d_model=encC, 
+    #                                nhead=8, num_encoder_layers=4, num_decoder_layers=8, dropout=0.1, 
+    #                                window_size=4, Spatial_FFN_hidden_ratio=4, TSLMA_flag = TSLMA_flag, rpe = rpe).to(device)
     optimizer_D = None
     #optimizer_D = torch.optim.Adam(params = VPTR_Disc.parameters(), lr = Transformer_lr, betas = (0.5, 0.999))
     optimizer_T = torch.optim.AdamW(params = VPTR_Transformer.parameters(), lr = Transformer_lr)
@@ -227,14 +230,15 @@ if __name__ == '__main__':
 
     #load the trained autoencoder, we initialize the discriminator from scratch, for a balanced training
     #loss_dict, start_epoch = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
-    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
+    loss_dict, other_dict = resume_training({'VPTR_Enc': VPTR_Enc, 'VPTR_Dec': VPTR_Dec}, {}, resume_AE_ckpt, loss_name_list)
+   
+    start_epoch = 0
 
     if resume_ckpt is not None:
-        loss_dict, _ = resume_training({'VPTR_Transformer': VPTR_Transformer}, 
+        start_epoch, loss_dict = resume_training({'VPTR_Transformer': VPTR_Transformer}, 
                                                 {'optimizer_T':optimizer_T}, resume_ckpt, loss_name_list, map_location=torch.device('cuda:0'))
-
-    start_epoch = other_dict["epochs"]
-
+        print(start_epoch)
+        print(loss_dict)
     #####################Train ################################
     for epoch in range(start_epoch+1, start_epoch + epochs+1):
         epoch_st = datetime.now()
@@ -250,7 +254,7 @@ if __name__ == '__main__':
             write_summary(summary_writer, loss_dict, train_flag = True)
 
             if epoch % show_example_epochs == 0 or epoch == 1:
-                NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('train_gifs_epoch{epoch}'))
+                NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath(f'train_gifs_epoch{epoch}'))
                     
             #validation
             EpochAveMeter = AverageMeters(loss_name_list)
@@ -267,10 +271,10 @@ if __name__ == '__main__':
             
             if epoch % show_example_epochs == 0 or epoch == 1:
                 for idx, sample in enumerate(test_loader, random.randint(0, len(test_loader) - 1)):
-                    NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath('test_gifs_epoch{epoch}'))
+                    NAR_show_samples(VPTR_Enc, VPTR_Dec, VPTR_Transformer, sample, ckpt_save_dir.joinpath(f'test_gifs_epoch{epoch}'))
                     break
                 
         epoch_time = datetime.now() - epoch_st
 
-        logging.info("epoch {epoch}, {EpochAveMeter.meters['T_total']}")
-        logging.info("Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
+        logging.info(f"epoch {epoch}, {EpochAveMeter.meters['T_total']}")
+        logging.info(f"Estimated remaining training time: {epoch_time.total_seconds()/3600. * (start_epoch + epochs - epoch)} Hours")
