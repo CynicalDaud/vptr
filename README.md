@@ -3,7 +3,7 @@ This repository contains code for using the implementation of the Video Predicti
 
 ![Gifs can be viewed from the results folder if they do not work here](Results/ae_epoch15.gif)
 
-## Installation & Set-up (Include Pre-requisites)
+## Installation & Set-up
 1. Clone the repository:  
 ```
 git clone https://github.com/CynicalDaud/vptr.git
